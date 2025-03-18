@@ -4,7 +4,7 @@ import json
 import cv2
 import torch
 
-from geocalib import GeoCalib
+# from geocalib import GeoCalib
 from typing import Dict
 
 
@@ -37,40 +37,40 @@ def print_calibration(results: Dict[str, torch.Tensor]) -> None:
         print(f"K1:    {camera.k1.item():.1f}")
 
 
-class GeoEstimator:
-    def __init__(self, distort=True, prior_focal=None):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        if distort:
-            self.model = GeoCalib(weights="distorted").to(self.device)
-        else:
-            self.model = GeoCalib(weights="pinhole").to(self.device)
-        self.prior_focal = prior_focal
+# class GeoEstimator:
+#     def __init__(self, distort=True, prior_focal=None):
+#         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+#         if distort:
+#             self.model = GeoCalib(weights="distorted").to(self.device)
+#         else:
+#             self.model = GeoCalib(weights="pinhole").to(self.device)
+#         self.prior_focal = prior_focal
 
-    def load_image(self, image_path):
-        self.im = self.model.load_image(image_path).to(self.device)
+#     def load_image(self, image_path):
+#         self.im = self.model.load_image(image_path).to(self.device)
 
-    def predict(self, verbose=True):
-        if self.prior_focal is not None:
-            result = self.model.calibrate(
-                self.im,
-                priors={"focal": torch.tensor(self.prior_focal).to(self.device)},
-            )
-        else:
-            result = self.model.calibrate(self.im)
+#     def predict(self, verbose=True):
+#         if self.prior_focal is not None:
+#             result = self.model.calibrate(
+#                 self.im,
+#                 priors={"focal": torch.tensor(self.prior_focal).to(self.device)},
+#             )
+#         else:
+#             result = self.model.calibrate(self.im)
 
-        if verbose:
-            print_calibration(result)
+#         if verbose:
+#             print_calibration(result)
 
-        gravity = result["gravity"]
-        roll, pitch = rad2deg(gravity.rp).unbind(-1)
-        roll_uncertain = rad2deg(result["roll_uncertainty"])
-        pitch_uncertain = rad2deg(result["pitch_uncertainty"])
-        return (
-            (roll - roll_uncertain).item(),
-            (roll + roll_uncertain).item(),
-            (pitch - pitch_uncertain).item(),
-            (pitch + pitch_uncertain).item(),
-        )
+#         gravity = result["gravity"]
+#         roll, pitch = rad2deg(gravity.rp).unbind(-1)
+#         roll_uncertain = rad2deg(result["roll_uncertainty"])
+#         pitch_uncertain = rad2deg(result["pitch_uncertainty"])
+#         return (
+#             (roll - roll_uncertain).item(),
+#             (roll + roll_uncertain).item(),
+#             (pitch - pitch_uncertain).item(),
+#             (pitch + pitch_uncertain).item(),
+#         )
 
 
 def read_json(path):
@@ -96,8 +96,45 @@ def judge_num_points(lst, thr=10):
     return False if len(lst) < thr else True
 
 
+def space_to_plane(p3d, K, D):
+    """
+    Projects a 3D point onto the image plane with lens distortion.
+    Args:
+        p3d (np.ndarray): 3D point in space as a numpy array of shape (3,).
+        K (np.ndarray): Camera matrix as a 3x3 numpy array.
+        D (np.ndarray): Distortion coefficients as a numpy array of shape (8,).
+    Returns:
+        np.ndarray: 2D point on the image plane as a numpy array of shape (2,).
+    """
+    # Project points to the normalized plane
+    p_u = np.array([p3d[0, 0] / p3d[0, 2], p3d[0, 1] / p3d[0, 2]])
+    # Extract distortion coefficients
+    k1, k2, p1, p2, k3, k4, k5, k6 = D
+    # Transform to model plane
+    x, y = p_u[0], p_u[1]
+    r2 = x * x + y * y
+    r4 = r2 * r2
+    r6 = r4 * r2
+    a1 = 2 * x * y
+    a2 = r2 + 2 * x * x
+    a3 = r2 + 2 * y * y
+    cdist = 1 + k1 * r2 + k2 * r4 + k3 * r6
+    icdist2 = 1.0 / (1 + k4 * r2 + k5 * r4 + k6 * r6)
+    # Apply distortion
+    d_u = np.array([
+        x * cdist * icdist2 + p1 * a1 + p2 * a2 - x,
+        y * cdist * icdist2 + p1 * a3 + p2 * a1 - y
+    ])
+    p_d = p_u + d_u
+    # Project to image plane using the camera matrix
+    uv = np.array([
+        K[0, 0] * p_d[0] + K[0, 2],
+        K[1, 1] * p_d[1] + K[1, 2]
+    ])
+    return uv
+
 class VP:
-    def __init__(self, K, verbose=False):
+    def __init__(self, K, dist_coef, verbose=False):
         self.K = K
         self.fx, self.cx = self.K[0, 0], self.K[0, 2]
         self.fy, self.cy = self.K[1, 1], self.K[1, 2]
@@ -106,12 +143,37 @@ class VP:
         self.vp = []
         self.line_fit_flag = True
         self.verbose = verbose
+        self.dist_coef = dist_coef
+
+    def undistort_points(self, frame_pts):
+        # undistort points by given intrinsics and distortion coeffs
+        undist_pts_lst = []
+        for lane in frame_pts:
+            undist_pts = cv2.undistortPoints(np.array(lane, dtype=np.float32), self.K, self.dist_coef, P=self.K)
+            undist_pts_lst.append(undist_pts)
+        return undist_pts_lst
+    
+    def distort_points(self, frame_pts):
+        dist_pts_lst = []
+        for undist_lane in frame_pts:
+            undist_pts_3d = cv2.convertPointsToHomogeneous(np.array(undist_lane, dtype=np.float32))
+            undist_pts_3d = undist_pts_3d.squeeze(1)
+            undist_pts_3d[0, 0] = (undist_pts_3d[0, 0] - self.cx) / self.fx
+            undist_pts_3d[0, 1] = (undist_pts_3d[0, 1] - self.cy) / self.fy
+            
+            # dist_pts, _ = cv2.projectPoints(undist_pts_3d, np.zeros(3, dtype=np.float32), np.zeros(3, dtype=np.float32), self.K, self.dist_coef)
+            # dist_pts_lst.append(dist_pts.squeeze(1))
+            dist_pts = space_to_plane(undist_pts_3d, self.K, self.dist_coef)
+            dist_pts_lst.append(dist_pts)
+        return dist_pts_lst
 
     def line_fit(self, frame_pts):
         for pts in frame_pts:
             if judge_num_points(pts):
-                x = np.array([p[0] for p in pts])
-                y = np.array([p[1] for p in pts])
+                # x = np.array([p[0] for p in pts])
+                # y = np.array([p[1] for p in pts])
+                x = pts.squeeze(1)[:, 0]
+                y = pts.squeeze(1)[:, 1]
                 m, c = np.polyfit(x, y, 1)
                 self.param_lst.append(np.array((m, c)))
                 if self.verbose:
@@ -186,7 +248,7 @@ def plot_res(im: np.ndarray, frame_lines, params, vanishing_point, yaw, pitch, *
         text_yaw_pitch = f"Yaw: {yaw:.2f}, Pitch: {pitch:.2f}"
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 1
-        font_color = (0, 0, 0)
+        font_color = (255, 255, 255)
         font_thickness = 4
         text_position = (10, 30)
 
@@ -327,18 +389,20 @@ def plot_navi_grid_fix(im: np.ndarray, uv_grid: np.ndarray, vp=None):
 
 
 if __name__ == "__main__":
-    info_path = "/home/william/extdisk/data/Lane_Detection_Result/20250219/19700101_002523_main.json"
+    info_path = "/home/william/extdisk/data/motorEV/Selected Video/01.json"
     image_path = (
-        "/home/william/extdisk/data/Lane_Detection_Result/frames/19700101_002021_main"
+        "/home/william/extdisk/data/motorEV/Selected Video/01"
     )
-    vis_path = "/home/william/extdisk/data/Lane_Detection_Result/frames/vis_navi_close+geocalib"
+    vis_path = "/home/william/extdisk/data/motorEV/Selected Video/01_vis"
     os.makedirs(vis_path, exist_ok=True)
 
     K = np.array(
         [1033.788708, 0, 916.010200, 0, 1033.780937, 522.486183, 0, 0, 1]
     ).reshape((3, 3))
 
-    sample_num = 100
+    dist_coef = np.array([63.285889, 34.709119, 0.00035, 0.00081, 1.231907, 63.752675, 61.351695, 8.551888])
+
+    sample_num = len(os.listdir(image_path))
     total_info = retrieve_info(info_path)
 
     x_sample = np.arange(-1, 1.25, 0.25)
@@ -351,49 +415,60 @@ if __name__ == "__main__":
     # camera height
     cam_h = 0.73357
 
-    geo_predictor = GeoEstimator(prior_focal=K[0, 0])
+    # geo_predictor = GeoEstimator(prior_focal=K[0, 0])
 
     for frame_cnt in range(1, sample_num + 1):
         im_name = f"{frame_cnt:04d}.jpg"
-        frame_pack = retrieve_pack_info_by_frame(total_info, frame_cnt)
+        frame_pack_raw = retrieve_pack_info_by_frame(total_info, frame_cnt)
         im_path = os.path.join(image_path, im_name)
         out_path = os.path.join(vis_path, im_name)
         im = cv2.imread(im_path)
-        geo_predictor.load_image(im_path)
-        if judge_valid(frame_pack) < 2:
+        # geo_predictor.load_image(im_path)
+        if judge_valid(frame_pack_raw) < 2:
             print(f"unable to collect sufficient labels of lane points")
             cv2.imwrite(out_path, im)
         else:
-            vp = VP(K, True)
+            vp = VP(K, dist_coef)
+            frame_pack = vp.undistort_points(frame_pack_raw)
             vp.line_fit(frame_pack)
             if vp.line_fit_flag:
                 vp.compute_vp()
                 vanishing_point = vp.filter_candidates("close")
                 yaw, pitch = vp.estimate_yp(vanishing_point)
-                min_roll, max_roll, min_pitch, max_pitch = geo_predictor.predict()
-                est = {
-                    "min_roll": min_roll,
-                    "max_roll": max_roll,
-                    "min_pitch": min_pitch,
-                    "max_pitch": max_pitch
-                }
+                # min_roll, max_roll, min_pitch, max_pitch = geo_predictor.predict()
+                # est = {
+                #     "min_roll": min_roll,
+                #     "max_roll": max_roll,
+                #     "min_pitch": min_pitch,
+                #     "max_pitch": max_pitch
+                # }
+                # im1 = plot_res(
+                #     im,
+                #     frame_pack,
+                #     vp.param_lst,
+                #     vanishing_point,
+                #     yaw,
+                #     pitch,
+                #     **est
+                # )
+                # restore_pts = vp.distort_points(frame_pack)
+                restore_vp = vp.distort_points([[vanishing_point]])[0]
                 im1 = plot_res(
                     im,
-                    frame_pack,
+                    frame_pack_raw,
                     vp.param_lst,
-                    vanishing_point,
+                    restore_vp,
                     yaw,
                     pitch,
-                    **est
                 )
                 
                 uv_grid = ground2im(xy_grid, K, pitch, -yaw, cam_h)
                 uv_grid_fix = ground2im(xy_grid, K, 0, 0, cam_h)
                 uvN_grid = uv_grid.reshape(xyN_grid.shape)
-                uvN_grid_fix = uv_grid_fix.reshape(xyN_grid.shape)
-                im2 = plot_navi_grid(im1, uvN_grid, vanishing_point)
-                im3 = plot_navi_grid_fix(im2, uvN_grid_fix)
-                cv2.imwrite(out_path, im3)
+                # uvN_grid_fix = uv_grid_fix.reshape(xyN_grid.shape)
+                im2 = plot_navi_grid(im1, uvN_grid, restore_vp)
+                # im3 = plot_navi_grid_fix(im2, uvN_grid_fix)
+                cv2.imwrite(out_path, im2)
             else:
                 print(f"unable to collect sufficient number of lane points")
                 cv2.imwrite(out_path, im)
