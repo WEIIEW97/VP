@@ -149,22 +149,24 @@ class VP:
         # undistort points by given intrinsics and distortion coeffs
         undist_pts_lst = []
         for lane in frame_pts:
-            undist_pts = cv2.undistortPoints(np.array(lane, dtype=np.float32), self.K, self.dist_coef, P=self.K)
-            undist_pts_lst.append(undist_pts)
+            if len(lane) != 0:
+                undist_pts = cv2.undistortPoints(np.array(lane, dtype=np.float32), self.K, self.dist_coef, P=self.K)
+                undist_pts_lst.append(undist_pts)
         return undist_pts_lst
     
     def distort_points(self, frame_pts):
         dist_pts_lst = []
         for undist_lane in frame_pts:
-            undist_pts_3d = cv2.convertPointsToHomogeneous(np.array(undist_lane, dtype=np.float32))
-            undist_pts_3d = undist_pts_3d.squeeze(1)
-            undist_pts_3d[0, 0] = (undist_pts_3d[0, 0] - self.cx) / self.fx
-            undist_pts_3d[0, 1] = (undist_pts_3d[0, 1] - self.cy) / self.fy
-            
-            # dist_pts, _ = cv2.projectPoints(undist_pts_3d, np.zeros(3, dtype=np.float32), np.zeros(3, dtype=np.float32), self.K, self.dist_coef)
-            # dist_pts_lst.append(dist_pts.squeeze(1))
-            dist_pts = space_to_plane(undist_pts_3d, self.K, self.dist_coef)
-            dist_pts_lst.append(dist_pts)
+            if len(undist_lane) != 0:
+                undist_pts_3d = cv2.convertPointsToHomogeneous(np.array(undist_lane, dtype=np.float32))
+                undist_pts_3d = undist_pts_3d.squeeze(1)
+                undist_pts_3d[0, 0] = (undist_pts_3d[0, 0] - self.cx) / self.fx
+                undist_pts_3d[0, 1] = (undist_pts_3d[0, 1] - self.cy) / self.fy
+                
+                # dist_pts, _ = cv2.projectPoints(undist_pts_3d, np.zeros(3, dtype=np.float32), np.zeros(3, dtype=np.float32), self.K, self.dist_coef)
+                # dist_pts_lst.append(dist_pts.squeeze(1))
+                dist_pts = space_to_plane(undist_pts_3d, self.K, self.dist_coef)
+                dist_pts_lst.append(dist_pts)
         return dist_pts_lst
 
     def line_fit(self, frame_pts):
@@ -389,11 +391,11 @@ def plot_navi_grid_fix(im: np.ndarray, uv_grid: np.ndarray, vp=None):
 
 
 if __name__ == "__main__":
-    info_path = "/home/william/extdisk/data/motorEV/Selected Video/01.json"
+    info_path = "/home/william/extdisk/data/Lane_Detection_Result/20250218/002/19700101_002021_main.json"
     image_path = (
-        "/home/william/extdisk/data/motorEV/Selected Video/01"
+        "/home/william/extdisk/data/Lane_Detection_Result/ref/19700101_002021-20250213_163412"
     )
-    vis_path = "/home/william/extdisk/data/motorEV/Selected Video/01_vis"
+    vis_path = "/home/william/extdisk/data/Lane_Detection_Result/frames/vis_002021_old"
     os.makedirs(vis_path, exist_ok=True)
 
     K = np.array(

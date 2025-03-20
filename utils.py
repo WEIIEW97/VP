@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 
 # extract frames from video
-def extract_frames(video_path, frames_dir, overwrite=False):
+def extract_frames(video_path, frames_dir, n_max=100, overwrite=False):
     if not os.path.exists(frames_dir):
         os.makedirs(frames_dir)
     else:
@@ -23,11 +23,14 @@ def extract_frames(video_path, frames_dir, overwrite=False):
         else:
             print('frame {} could not be read'.format(i))
             break
+        if i == n_max + 1:
+            print("read {} frames".format(n_max))
+            break
 
     cap.release()
     print("frames extracted at {}".format(frames_dir))
 
 if __name__ == "__main__":
-    video_path = '/home/william/extdisk/data/motorEV/Selected Video/01.mp4'
-    frames_dir = '/home/william/extdisk/data/motorEV/Selected Video/01'
+    video_path = '/home/william/extdisk/data/Lane_Detection_Result/ref/19700101_002021-20250213_163412.mp4'
+    frames_dir = '/home/william/extdisk/data/Lane_Detection_Result/ref/19700101_002021-20250213_163412'
     extract_frames(video_path, frames_dir, overwrite=True)
