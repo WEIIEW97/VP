@@ -121,17 +121,17 @@ def space_to_plane(p3d, K, D):
     cdist = 1 + k1 * r2 + k2 * r4 + k3 * r6
     icdist2 = 1.0 / (1 + k4 * r2 + k5 * r4 + k6 * r6)
     # Apply distortion
-    d_u = np.array([
-        x * cdist * icdist2 + p1 * a1 + p2 * a2 - x,
-        y * cdist * icdist2 + p1 * a3 + p2 * a1 - y
-    ])
+    d_u = np.array(
+        [
+            x * cdist * icdist2 + p1 * a1 + p2 * a2 - x,
+            y * cdist * icdist2 + p1 * a3 + p2 * a1 - y,
+        ]
+    )
     p_d = p_u + d_u
     # Project to image plane using the camera matrix
-    uv = np.array([
-        K[0, 0] * p_d[0] + K[0, 2],
-        K[1, 1] * p_d[1] + K[1, 2]
-    ])
+    uv = np.array([K[0, 0] * p_d[0] + K[0, 2], K[1, 1] * p_d[1] + K[1, 2]])
     return uv
+
 
 class VP:
     def __init__(self, K, dist_coef, verbose=False):
@@ -145,24 +145,30 @@ class VP:
         self.verbose = verbose
         self.dist_coef = dist_coef
 
+        self.r2_thr = 0.1
+
     def undistort_points(self, frame_pts):
         # undistort points by given intrinsics and distortion coeffs
         undist_pts_lst = []
         for lane in frame_pts:
             if len(lane) != 0:
-                undist_pts = cv2.undistortPoints(np.array(lane, dtype=np.float32), self.K, self.dist_coef, P=self.K)
+                undist_pts = cv2.undistortPoints(
+                    np.array(lane, dtype=np.float32), self.K, self.dist_coef, P=self.K
+                )
                 undist_pts_lst.append(undist_pts)
         return undist_pts_lst
-    
+
     def distort_points(self, frame_pts):
         dist_pts_lst = []
         for undist_lane in frame_pts:
             if len(undist_lane) != 0:
-                undist_pts_3d = cv2.convertPointsToHomogeneous(np.array(undist_lane, dtype=np.float32))
+                undist_pts_3d = cv2.convertPointsToHomogeneous(
+                    np.array(undist_lane, dtype=np.float32)
+                )
                 undist_pts_3d = undist_pts_3d.squeeze(1)
                 undist_pts_3d[0, 0] = (undist_pts_3d[0, 0] - self.cx) / self.fx
                 undist_pts_3d[0, 1] = (undist_pts_3d[0, 1] - self.cy) / self.fy
-                
+
                 # dist_pts, _ = cv2.projectPoints(undist_pts_3d, np.zeros(3, dtype=np.float32), np.zeros(3, dtype=np.float32), self.K, self.dist_coef)
                 # dist_pts_lst.append(dist_pts.squeeze(1))
                 dist_pts = space_to_plane(undist_pts_3d, self.K, self.dist_coef)
@@ -174,18 +180,37 @@ class VP:
             if judge_num_points(pts):
                 # x = np.array([p[0] for p in pts])
                 # y = np.array([p[1] for p in pts])
+                
                 x = pts.squeeze(1)[:, 0]
                 y = pts.squeeze(1)[:, 1]
-                m, c = np.polyfit(x, y, 1)
-                self.param_lst.append(np.array((m, c)))
-                if self.verbose:
-                    print(f"Fitted line: y = {m:.2f}x + {c:.2f}")
-                self.homo_lst.append(
-                    np.array((m, -1, c))
-                )  # add -1 for b in homo coords
 
-        if len(self.param_lst) < 2:
-            self.line_fit_flag = False
+                # need to filter out the curve points
+                # normalize x for numerically stability
+                xn = (x - np.mean(x)) / (np.std(x) + 1e-10)
+
+                A = np.vstack([x, np.ones(len(x))]).T
+                m, c = np.linalg.lstsq(A, y, rcond=None)[0]
+                pred_linear = m * xn + c
+                r2_linear = 1 - np.sum((y - pred_linear) ** 2) / np.sum(
+                    (y - np.mean(y)) ** 2
+                )
+
+                A_quad = np.column_stack([xn**2, xn.np.ones(len(x))])
+                a, b, c = np.linalg.lstsq(A_quad, y, rcond=None)[0]
+                pred_quad = a * xn**2 + b * xn + c
+                r2_quad = 1 - np.sum((y - pred_quad) ** 2) / np.sum(
+                    (y - np.mean(y)) ** 2
+                )
+
+                if r2_quad > r2_linear + self.r2_thr:
+                    if self.verbose:
+                        print("Curved points detected! Skipping line fit.")
+                    continue
+
+                self.param_lst.append(np.array((m, c)))
+                self.homo_lst.append(np.array(m, -1, c))
+
+        self.line_fit_flag = len(self.param_lst) >= 2
 
     def compute_vp(self):
         sz = len(self.homo_lst)
@@ -220,7 +245,9 @@ class VP:
         return yaw, pitch
 
 
-def plot_res(im: np.ndarray, frame_lines, params, vanishing_point, yaw, pitch, **kwargs):
+def plot_res(
+    im: np.ndarray, frame_lines, params, vanishing_point, yaw, pitch, **kwargs
+):
 
     for line in frame_lines:
         for point in line:
@@ -286,7 +313,10 @@ def plot_res(im: np.ndarray, frame_lines, params, vanishing_point, yaw, pitch, *
                 cv2.putText(
                     im,
                     text,
-                    (text_position[0], text_position[1] + i * 30),  # Move down for each line
+                    (
+                        text_position[0],
+                        text_position[1] + i * 30,
+                    ),  # Move down for each line
                     font,
                     font_scale,
                     font_color,
@@ -392,9 +422,7 @@ def plot_navi_grid_fix(im: np.ndarray, uv_grid: np.ndarray, vp=None):
 
 if __name__ == "__main__":
     info_path = "/home/william/extdisk/data/Lane_Detection_Result/20250218/002/19700101_002021_main.json"
-    image_path = (
-        "/home/william/extdisk/data/Lane_Detection_Result/ref/19700101_002021-20250213_163412"
-    )
+    image_path = "/home/william/extdisk/data/Lane_Detection_Result/ref/19700101_002021-20250213_163412"
     vis_path = "/home/william/extdisk/data/Lane_Detection_Result/frames/vis_002021_old"
     os.makedirs(vis_path, exist_ok=True)
 
@@ -402,7 +430,18 @@ if __name__ == "__main__":
         [1033.788708, 0, 916.010200, 0, 1033.780937, 522.486183, 0, 0, 1]
     ).reshape((3, 3))
 
-    dist_coef = np.array([63.285889, 34.709119, 0.00035, 0.00081, 1.231907, 63.752675, 61.351695, 8.551888])
+    dist_coef = np.array(
+        [
+            63.285889,
+            34.709119,
+            0.00035,
+            0.00081,
+            1.231907,
+            63.752675,
+            61.351695,
+            8.551888,
+        ]
+    )
 
     sample_num = len(os.listdir(image_path))
     total_info = retrieve_info(info_path)
@@ -463,7 +502,7 @@ if __name__ == "__main__":
                     yaw,
                     pitch,
                 )
-                
+
                 uv_grid = ground2im(xy_grid, K, pitch, -yaw, cam_h)
                 uv_grid_fix = ground2im(xy_grid, K, 0, 0, cam_h)
                 uvN_grid = uv_grid.reshape(xyN_grid.shape)

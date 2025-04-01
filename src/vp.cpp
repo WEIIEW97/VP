@@ -22,13 +22,6 @@ bool VP::judge_valid(const std::vector<Eigen::MatrixXf>& frame_pts, int thr) {
   return frame_pts.size() >= thr;
 }
 
-// VP::~VP() {
-//   // deallocate memory
-//   std::vector<Eigen::Vector2f>().swap(param_lst_);
-//   std::vector<Eigen::Vector3f>().swap(homo_lst_);
-//   std::vector<Eigen::Vector3f>().swap(vps_);
-// }
-
 Eigen::VectorXf VP::polyfit(const Eigen::VectorXf& x,
                             const Eigen::VectorXf& y) {
   int n = x.size();
@@ -40,18 +33,50 @@ Eigen::VectorXf VP::polyfit(const Eigen::VectorXf& x,
     }
     return Eigen::Vector2f::Zero();
   }
+
+  // normalize x for numerical stability
+  auto mu = x.mean();
+  auto sigma = std::sqrt((x.array() - mu).square().sum() / (x.size() - 1));
+  const Eigen::VectorXf xn = (x.array() - mu) / (sigma + 1e-10);
   Eigen::MatrixXf A(n, 2);
-  A.col(0) = x;
+  A.col(0) = xn;
   A.col(1) = Eigen::VectorXf::Ones(n);
 
   // solve linear system A^T * A * [m; c] = A^T * y
-  Eigen::VectorXf params = (A.transpose() * A).ldlt().solve(A.transpose() * y);
-  return params;
+  // Eigen::VectorXf params = (A.transpose() * A).ldlt().solve(A.transpose() *
+  // y);
+  Eigen::Vector2f coeffs_linear =
+      A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(y);
+  const Eigen::VectorXf pred_linear = A * coeffs_linear;
+  auto r2_linear = 1 - (y - pred_linear).squaredNorm() /
+                           (y.array() - y.mean()).square().sum();
+
+  // solve quadratic system
+  Eigen::MatrixXf A_quad(n, 3);
+  A_quad.col(0) = xn.array().square();
+  A_quad.col(1) = xn;
+  A_quad.col(2) = Eigen::VectorXf::Ones(n);
+
+  Eigen::Vector3f coeffs_quad =
+      A_quad.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(y);
+  const Eigen::VectorXf pred_quad = A_quad * coeffs_quad;
+  auto r2_quad =
+      1 - (y - pred_quad).squaredNorm() / (y.array() - y.mean()).square().sum();
+
+  if (r2_quad > r2_linear + r2_thr_) {
+    if (verbose_) {
+      fmt::print("Curved points detected! Skipping line fit.");
+      return Eigen::Vector2f::Zero();
+    }
+  }
+
+  return coeffs_linear;
 }
 
 void VP::line_fit(const std::vector<Eigen::MatrixXf>& frame_pts) {
   for (const auto& pts : frame_pts) {
-    auto undist_pt = undistort_points<float>(pts, K_, dist_coef_);
+    auto undist_pt = undistort_points<float>(cam_model_, pts, K_, dist_coef_);
+    //  auto undist_pt = undistort_points<float>(pts, K_, dist_coef_);
     auto x = undist_pt.col(0);
     auto y = undist_pt.col(1);
     auto params = polyfit(x, y);
@@ -65,8 +90,7 @@ void VP::line_fit(const std::vector<Eigen::MatrixXf>& frame_pts) {
     }
   }
 
-  if (param_lst_.size() < 2)
-    line_fit_flag_ = false;
+  line_fit_flag_ = param_lst_.size() >= 2;
 }
 
 void VP::compute_vp() {
@@ -154,7 +178,7 @@ VP::get_yp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts) {
     return Eigen::Vector2f::Ones() * -99.f;
   }
 
-  auto vp = filter_candidates("mean");
+  auto vp = filter_candidates("close");
   reload();
   return estimate_yp(vp);
 }
