@@ -188,14 +188,14 @@ class VP:
                 # normalize x for numerically stability
                 xn = (x - np.mean(x)) / (np.std(x) + 1e-10)
 
-                A = np.vstack([x, np.ones(len(x))]).T
+                A = np.vstack([xn, np.ones(len(x))]).T
                 m, c = np.linalg.lstsq(A, y, rcond=None)[0]
                 pred_linear = m * xn + c
                 r2_linear = 1 - np.sum((y - pred_linear) ** 2) / np.sum(
                     (y - np.mean(y)) ** 2
                 )
 
-                A_quad = np.column_stack([xn**2, xn.np.ones(len(x))])
+                A_quad = np.column_stack([xn**2, xn, np.ones(len(x))])
                 a, b, c = np.linalg.lstsq(A_quad, y, rcond=None)[0]
                 pred_quad = a * xn**2 + b * xn + c
                 r2_quad = 1 - np.sum((y - pred_quad) ** 2) / np.sum(
@@ -206,9 +206,11 @@ class VP:
                     if self.verbose:
                         print("Curved points detected! Skipping line fit.")
                     continue
-
+                
+                m = m / np.std(x)
+                c = c - m * np.mean(x)
                 self.param_lst.append(np.array((m, c)))
-                self.homo_lst.append(np.array(m, -1, c))
+                self.homo_lst.append(np.array((m, -1, c)))
 
         self.line_fit_flag = len(self.param_lst) >= 2
 
@@ -221,7 +223,7 @@ class VP:
         if self.verbose:
             print(f"VP candidates are: {self.vp}")
 
-    def filter_candidates(self, strategy="mean"):
+    def filter_candidates(self, strategy="close"):
         vp_array = np.array(self.vp)[:, 0:2]
         if strategy == "mean":
             x_hat = np.mean(vp_array[:, 0])
@@ -421,9 +423,9 @@ def plot_navi_grid_fix(im: np.ndarray, uv_grid: np.ndarray, vp=None):
 
 
 if __name__ == "__main__":
-    info_path = "/home/william/extdisk/data/Lane_Detection_Result/20250218/002/19700101_002021_main.json"
-    image_path = "/home/william/extdisk/data/Lane_Detection_Result/ref/19700101_002021-20250213_163412"
-    vis_path = "/home/william/extdisk/data/Lane_Detection_Result/frames/vis_002021_old"
+    info_path = "/home/william/extdisk/data/motorEV/19700101_002523/19700101_002523.json"
+    image_path = "/home/william/extdisk/data/motorEV/19700101_002523/19700101_002523"
+    vis_path = "/home/william/extdisk/data/motorEV/19700101_002523/vis"
     os.makedirs(vis_path, exist_ok=True)
 
     K = np.array(
@@ -457,9 +459,11 @@ if __name__ == "__main__":
     cam_h = 0.73357
 
     # geo_predictor = GeoEstimator(prior_focal=K[0, 0])
-
+    im_names = sorted([f for f in os.listdir(image_path) if os.path.isfile(os.path.join(image_path, f))])
+    
     for frame_cnt in range(1, sample_num + 1):
-        im_name = f"{frame_cnt:04d}.jpg"
+        # im_name = f"{frame_cnt:04d}.png"
+        im_name = im_names[frame_cnt-1]
         frame_pack_raw = retrieve_pack_info_by_frame(total_info, frame_cnt)
         im_path = os.path.join(image_path, im_name)
         out_path = os.path.join(vis_path, im_name)

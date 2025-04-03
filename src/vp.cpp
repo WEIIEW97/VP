@@ -70,6 +70,10 @@ Eigen::VectorXf VP::polyfit(const Eigen::VectorXf& x,
     }
   }
 
+  // restore back to original scale
+  coeffs_linear(0) = coeffs_linear(0) / sigma;
+  coeffs_linear(1) = coeffs_linear(1) - coeffs_linear(0) * mu;
+
   return coeffs_linear;
 }
 
