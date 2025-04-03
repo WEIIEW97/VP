@@ -22,18 +22,23 @@
 using namespace std;
 
 int main() {
-  string json_path = "/home/william/extdisk/data/Lane_Detection_Result/"
-                     "20250219/19700101_002523_main.json";
+  string json_path = "/home/william/extdisk/data/motorEV/19700101_002523/19700101_002523.json";
   auto info = retrieve_info(json_path);
   int frame_id = 1;
   auto result = retrieve_pack_info_by_frame(info, frame_id);
-  auto frame = json_to_eigen_matrix(result);
+  auto frame = json_to_eigen_matrix(result["lanes"]);
+  cout << frame[0] << endl;
+  cout << frame[1] << endl;
+  auto yaw = result["yaw"].get<float>();
+  auto pitch = result["pitch"].get<float>();
+  auto roll = result["roll"].get<float>();
+  cout << yaw << ", " << pitch << ", " << roll << endl;
   Eigen::Matrix3f K;
   K << 1033.788708, 0, 916.010200, 0, 1033.780937, 522.486183, 0, 0, 1;
   Eigen::VectorXf dist_coefs(8);
   dist_coefs << 63.285886f, 34.709119f, 0.000035f, 0.000081f, 1.231907f,
       63.752675f, 61.351695f, 8.551888f;
-  auto vp_detector = VP(K, dist_coefs);
+  auto vp_detector = VP(K, dist_coefs, 10, CameraModel::pinhole_k6, true);
   auto yp = vp_detector.get_yp_estimation(frame);
   cout << yp << endl;
   return 0;

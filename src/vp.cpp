@@ -28,7 +28,7 @@ Eigen::VectorXf VP::polyfit(const Eigen::VectorXf& x,
   if (n < min_num_pts_) {
     if (verbose_) {
       fmt::print(
-          "line fitting must have at least {} points, but get {} instead.",
+          "line fitting must have at least {} points, but get {} instead.\n",
           min_num_pts_, n);
     }
     return Eigen::Vector2f::Zero();
@@ -65,7 +65,7 @@ Eigen::VectorXf VP::polyfit(const Eigen::VectorXf& x,
 
   if (r2_quad > r2_linear + r2_thr_) {
     if (verbose_) {
-      fmt::print("Curved points detected! Skipping line fit.");
+      fmt::print("Curved points detected! Skipping line fit.\n");
       return Eigen::Vector2f::Zero();
     }
   }
@@ -90,7 +90,7 @@ void VP::line_fit(const std::vector<Eigen::MatrixXf>& frame_pts) {
       homo_lst_.push_back(homo);
     }
     if (verbose_) {
-      fmt::print("Fitted line: y={}x + {}", params(0), params(1));
+      fmt::print("Fitted line: y={}x + {}\n", params(0), params(1));
     }
   }
 
@@ -108,7 +108,7 @@ void VP::compute_vp() {
 
   if (verbose_) {
     for (const auto& vp : vps_) {
-      fmt::print("VP candidates are: x={}, y={}", vp(0), vp(1));
+      fmt::print("VP candidates are: x={}, y={}\n", vp(0), vp(1));
     }
   }
 }
@@ -166,19 +166,19 @@ Eigen::Vector2f VP::estimate_yp(const Eigen::Vector2f& vp) {
 Eigen::Vector2f
 VP::get_yp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts) {
   if (!judge_valid(frame_pts)) {
-    fmt::print("Not enough points to estimate vanishing point");
+    fmt::print("Not enough points to estimate vanishing point\n");
     return Eigen::Vector2f::Ones() * -99.f;
   }
 
   line_fit(frame_pts);
   if (!line_fit_flag_) {
-    fmt::print("Failed to fit lines");
+    fmt::print("Failed to fit lines\n");
     return Eigen::Vector2f::Ones() * -99.f;
   }
 
   compute_vp();
   if (vps_.empty()) {
-    fmt::print("No vanishing point candidates found");
+    fmt::print("No vanishing point candidates found\n");
     return Eigen::Vector2f::Ones() * -99.f;
   }
 

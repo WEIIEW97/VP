@@ -276,7 +276,7 @@ Eigen::Matrix<EigenScalarType, -1, 2> undistort_points(CameraModel cam_model,
 class VP {
 public:
   VP(const Eigen::Matrix3f& K, const Eigen::VectorXf& dist_coef,
-     int min_num_pts = 10, CameraModel cam_model = CameraModel::fisheye,
+     int min_num_pts = 10, CameraModel cam_model = CameraModel::pinhole_k6,
      bool verbose = false)
       : K_(K), dist_coef_(dist_coef), min_num_pts_(min_num_pts),
         cam_model_(cam_model), verbose_(verbose) {
@@ -285,8 +285,6 @@ public:
     fy_ = K(1, 1);
     cy_ = K(1, 2);
   }
-
-  ~VP();
 
 private:
   bool judge_valid(const std::vector<Eigen::MatrixXf>& frame_pts, int thr = 2);
