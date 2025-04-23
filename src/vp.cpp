@@ -155,8 +155,39 @@ Eigen::Vector2f VP::filter_candidates(const std::string& strategy) {
   }
 }
 
+Eigen::Vector2f VP::temporal_smooth(const Eigen::Vector2f& vp) {
+  if (vp.isZero()) {
+    if (vps_trace_.empty()) {
+      return Eigen::Vector2f::Zero();
+    }
+    Eigen::Vector2f mean = Eigen::Vector2f::Zero();
+    for (const auto& v : vps_trace_) {
+      mean += v;
+    }
+    return mean / vps_trace_.size();
+  }
+
+  vps_trace_.push_back(vp);
+  if (vps_trace_.size() > window_size_) {
+    vps_trace_.pop_front();
+  }
+  Eigen::Vector2f mean = Eigen::Vector2f::Zero();
+  for (const auto& v : vps_trace_) {
+    mean += v;
+  }
+  return mean / vps_trace_.size();
+}
+
 Eigen::Vector2f VP::estimate_yp(const Eigen::Vector2f& vp) {
-  float x = vp(0), y = vp(1);
+  auto vp_smooth = temporal_smooth(vp);
+  float x, y;
+  if (vp_smooth.isZero()) {
+    x = vp(0);
+    y = vp(1);
+  } else {
+    x = vp_smooth(0);
+    y = vp_smooth(1);
+  }
   auto yaw = std::atan((x - cx_) / fx_) * 180.f / M_PI;
   auto pitch = std::atan((cy_ - y) / fy_) * 180.f / M_PI;
   Eigen::Vector2f yp(yaw, pitch);

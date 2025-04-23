@@ -141,11 +141,13 @@ class VP:
         self.param_lst = []
         self.homo_lst = []
         self.vp = []
+        self.vp_trace = []
         self.line_fit_flag = True
         self.verbose = verbose
         self.dist_coef = dist_coef
 
         self.r2_thr = 0.1
+        self.window_size = 5
 
     def undistort_points(self, frame_pts):
         # undistort points by given intrinsics and distortion coeffs
@@ -180,7 +182,7 @@ class VP:
             if judge_num_points(pts):
                 # x = np.array([p[0] for p in pts])
                 # y = np.array([p[1] for p in pts])
-                
+
                 x = pts.squeeze(1)[:, 0]
                 y = pts.squeeze(1)[:, 1]
 
@@ -206,7 +208,7 @@ class VP:
                     if self.verbose:
                         print("Curved points detected! Skipping line fit.")
                     continue
-                
+
                 m = m / np.std(x)
                 c = c - m * np.mean(x)
                 self.param_lst.append(np.array((m, c)))
@@ -240,8 +242,23 @@ class VP:
             raise ValueError(f"not implemented strategy {strategy}.")
         return np.array((x_hat, y_hat))
 
+    def temporal_smooth(self, vp):
+        if vp is None:
+            if len(self.vp_trace) == 0:
+                return None
+            return np.mean(self.vp_trace, axis=0)
+        self.vp_trace.append(vp)
+        if len(self.vp_trace) > self.window_size:
+            self.vp_trace.pop(0)
+        return np.mean(self.vp_trace, axis=0)
+
     def estimate_yp(self, vp):
-        x, y = vp  # vp shape: [1, 2]
+        # x, y = vp  # vp shape: [1, 2]
+        vp_smooth = self.temporal_smooth(vp)
+        if vp_smooth is not None:
+            x, y = vp_smooth
+        else:
+            x, y = vp
         yaw = np.arctan((x - self.cx) / self.fx) * 180 / np.pi
         pitch = np.arctan((self.cy - y) / self.fy) * 180 / np.pi
         return yaw, pitch
@@ -421,11 +438,12 @@ def plot_navi_grid_fix(im: np.ndarray, uv_grid: np.ndarray, vp=None):
 
     return im
 
-
 if __name__ == "__main__":
-    info_path = "/home/william/extdisk/data/motorEV/19700101_002523/19700101_002523.json"
+    info_path = (
+        "/home/william/extdisk/data/motorEV/19700101_002523/19700101_002523.json"
+    )
     image_path = "/home/william/extdisk/data/motorEV/19700101_002523/19700101_002523"
-    vis_path = "/home/william/extdisk/data/motorEV/19700101_002523/vis"
+    vis_path = "/home/william/extdisk/data/motorEV/19700101_002523/vis_smooth"
     os.makedirs(vis_path, exist_ok=True)
 
     K = np.array(
@@ -459,11 +477,17 @@ if __name__ == "__main__":
     cam_h = 0.73357
 
     # geo_predictor = GeoEstimator(prior_focal=K[0, 0])
-    im_names = sorted([f for f in os.listdir(image_path) if os.path.isfile(os.path.join(image_path, f))])
-    
+    im_names = sorted(
+        [
+            f
+            for f in os.listdir(image_path)
+            if os.path.isfile(os.path.join(image_path, f))
+        ]
+    )
+
     for frame_cnt in range(1, sample_num + 1):
         # im_name = f"{frame_cnt:04d}.png"
-        im_name = im_names[frame_cnt-1]
+        im_name = im_names[frame_cnt - 1]
         frame_pack_raw = retrieve_pack_info_by_frame(total_info, frame_cnt)
         im_path = os.path.join(image_path, im_name)
         out_path = os.path.join(vis_path, im_name)

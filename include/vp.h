@@ -24,6 +24,7 @@
 #include <cmath>
 #include <iostream>
 #include <utility>
+#include <deque>
 
 enum class CameraModel {
   pinhole_k6,
@@ -276,10 +277,10 @@ Eigen::Matrix<EigenScalarType, -1, 2> undistort_points(CameraModel cam_model,
 class VP {
 public:
   VP(const Eigen::Matrix3f& K, const Eigen::VectorXf& dist_coef,
-     int min_num_pts = 10, CameraModel cam_model = CameraModel::pinhole_k6,
-     bool verbose = false)
+     int min_num_pts = 10, int window_size = 5,
+     CameraModel cam_model = CameraModel::pinhole_k6, bool verbose = false)
       : K_(K), dist_coef_(dist_coef), min_num_pts_(min_num_pts),
-        cam_model_(cam_model), verbose_(verbose) {
+        window_size_(window_size), cam_model_(cam_model), verbose_(verbose) {
     fx_ = K(0, 0);
     cx_ = K(0, 2);
     fy_ = K(1, 1);
@@ -292,6 +293,7 @@ private:
   void line_fit(const std::vector<Eigen::MatrixXf>& frame_pts);
   void compute_vp();
   Eigen::Vector2f filter_candidates(const std::string& strategy);
+  Eigen::Vector2f temporal_smooth(const Eigen::Vector2f& vp);
   Eigen::Vector2f estimate_yp(const Eigen::Vector2f& vp);
   void reload();
 
@@ -308,6 +310,8 @@ private:
   std::vector<Eigen::Vector2f> param_lst_;
   std::vector<Eigen::Vector3f> homo_lst_;
   std::vector<Eigen::Vector3f> vps_;
+  std::deque<Eigen::Vector2f> vps_trace_;
+  int window_size_;
   float fx_, cx_, fy_, cy_;
   bool line_fit_flag_ = true;
   float r2_thr_ = 0.1f;

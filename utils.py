@@ -68,7 +68,39 @@ def h265_to_frames(video_path, output_folder, frame_interval=1, n_max=100, warmu
     cap.release()
     print(f"Extracted {saved_count} frames from {frame_count} total frames")
 
+
+def frames_to_video(
+    image_path: str,
+    video_path: str,
+    fps: int = 24,
+    fourcc: str = "mp4",
+):
+    images = [
+        img for img in os.listdir(image_path) if img.endswith(".png") or img.endswith(".jpg")
+    ]
+    images.sort()
+
+    frame = cv2.imread(os.path.join(image_path, images[0]))
+    h, w, _ = frame.shape
+
+    fourcc = cv2.VideoWriter_fourcc(*fourcc)
+    out = cv2.VideoWriter(video_path, fourcc, fps, (w, h))
+
+    for image in images:
+        frame = cv2.imread(os.path.join(image_path, image))
+        out.write(frame)
+
+    out.release()
+
 if __name__ == "__main__":
-    video_path = '/home/william/extdisk/data/motorEV/20240415/20250201_000011_main.h265'
-    frames_dir = '/home/william/extdisk/data/motorEV/20240415/frames'
-    h265_to_frames(video_path, frames_dir, warmup=0)
+    # video_path = '/home/william/extdisk/data/motorEV/20240415/20250201_000011_main.h265'
+    # frames_dir = '/home/william/extdisk/data/motorEV/20240415/frames'
+    # h265_to_frames(video_path, frames_dir, warmup=0)
+
+    vis_path1 = "/home/william/extdisk/data/motorEV/19700101_002523/vis"
+    vis_path2 = "/home/william/extdisk/data/motorEV/19700101_002523/vis_smooth"
+
+    video_path1 = "/home/william/extdisk/data/motorEV/19700101_002523/vis.mp4"
+    video_path2 = "/home/william/extdisk/data/motorEV/19700101_002523/vis_smooth.mp4"
+    frames_to_video(vis_path1, video_path1, fps=24)
+    frames_to_video(vis_path2, video_path2, fps=24)
