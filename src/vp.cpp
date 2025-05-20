@@ -218,6 +218,34 @@ VP::get_yp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts) {
   return estimate_yp(vp);
 }
 
+Eigen::Vector2f
+VP::get_vp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts) {
+  if (!judge_valid(frame_pts)) {
+    fmt::print("Not enough points to estimate vanishing point");
+    return Eigen::Vector2f::Ones() * -99.f;
+  }
+
+  line_fit(frame_pts);
+  if (!line_fit_flag_) {
+    fmt::print("Failed to fit lines");
+    return Eigen::Vector2f::Ones() * -99.f;
+  }
+
+  compute_vp();
+  if (vps_.empty()) {
+    fmt::print("No vanishing point candidates found");
+    return Eigen::Vector2f::Ones() * -99.f;
+  }
+
+  auto vp = filter_candidates("close");
+  reload();
+  return vp;
+}
+
+Eigen::Vector2f VP::get_yp_est_by_vp(const Eigen::Vector2f& vp) {
+  return estimate_yp(vp);
+}
+
 void VP::reload() {
   param_lst_.clear();
   homo_lst_.clear();

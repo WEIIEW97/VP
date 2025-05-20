@@ -26,6 +26,8 @@
 #include <utility>
 #include <deque>
 
+#include "kf.h"
+
 enum class CameraModel {
   pinhole_k6,
   fisheye,
@@ -294,12 +296,16 @@ private:
   void compute_vp();
   Eigen::Vector2f filter_candidates(const std::string& strategy);
   Eigen::Vector2f temporal_smooth(const Eigen::Vector2f& vp);
+  Eigen::Vector2f kalman_smooth(const Eigen::Vector2f & vp);
   Eigen::Vector2f estimate_yp(const Eigen::Vector2f& vp);
   void reload();
 
 public:
   Eigen::Vector2f
   get_yp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts);
+  Eigen::Vector2f
+  get_vp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts);
+  Eigen::Vector2f get_yp_est_by_vp(const Eigen::Vector2f& vp);
 
 private:
   Eigen::Matrix3f K_;
