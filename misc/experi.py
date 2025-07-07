@@ -184,7 +184,6 @@ def test_pose_degree_offset():
 
             # Calculate delta (e.g., mean offset across all points)
             # delta = np.mean(grid_xy_offset - original_points, axis=0)
-
             # Create new row
             new_row = pd.DataFrame(
                 [
