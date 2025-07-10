@@ -36,9 +36,6 @@ def create_avm(images, rvecs, tvecs, camera_matrix, dist_coeffs, output_size=(10
     # 1. Undistort images first
     images, new_camera_matrix = undistort_images(images, camera_matrix, dist_coeffs)
     
-    # 2. Convert rotation vectors to rotation matrices
-    images, new_camera_matrix = undistort_images(images, camera_matrix, dist_coeffs)
-    
     # 2. Convert all poses to be relative to the SECOND image's coordinate system
     R_ref = cv2.Rodrigues(rvecs[1])[0]  # Second image's rotation
     t_ref = tvecs[1]                     # Second image's translation
