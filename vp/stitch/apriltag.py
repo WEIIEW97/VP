@@ -1,4 +1,3 @@
-import aprilgrid.detection
 import numpy as np
 import cv2
 import aprilgrid
@@ -83,7 +82,8 @@ class AprilGridDetector:
 def main():
     detector = AprilGridDetector()
     
-    data_path = Path("/home/william/Codes/vp/data/zed_360")
+    project_dir = Path.cwd().parent
+    data_path = project_dir / Path('data/zed_360')
     image_paths = sorted(data_path.glob("*.png"))
     
     # First pass: collect all poses

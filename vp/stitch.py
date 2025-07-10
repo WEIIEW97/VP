@@ -37,14 +37,31 @@ def create_avm(images, rvecs, tvecs, camera_matrix, dist_coeffs, output_size=(10
     images, new_camera_matrix = undistort_images(images, camera_matrix, dist_coeffs)
     
     # 2. Convert rotation vectors to rotation matrices
-    R_mats = [cv2.Rodrigues(rvec)[0] for rvec in rvecs]
+    images, new_camera_matrix = undistort_images(images, camera_matrix, dist_coeffs)
     
-    # 3. Define ground plane points (in world coordinates)
-    # Adjust these values based on your scene scale
-    ground_width = 2.0  # meters (x-direction)
-    ground_length = 2.0  # meters (y-direction)
+    # 2. Convert all poses to be relative to the SECOND image's coordinate system
+    R_ref = cv2.Rodrigues(rvecs[1])[0]  # Second image's rotation
+    t_ref = tvecs[1]                     # Second image's translation
     
-    # Create 3D points (must be Nx3 array)
+    relative_poses = []
+    for i in range(3):
+        Ri = cv2.Rodrigues(rvecs[i])[0]
+        ti = tvecs[i]
+        
+        # Transform to second camera's coordinate system
+        R_rel = R_ref.T @ Ri
+        t_rel = R_ref.T @ (ti - t_ref)
+        
+        relative_poses.append({
+            'R': R_rel if i != 1 else np.eye(3),  # Second image is identity
+            't': t_rel if i != 1 else np.zeros(3), # Second image is origin
+            'rvec': cv2.Rodrigues(R_rel)[0] if i != 1 else np.zeros(3)
+        })
+    
+    # 3. Define ground plane in second image's coordinate system
+    ground_width = 10.0  # meters (x-direction)
+    ground_length = 10.0 # meters (y-direction)
+    
     ground_pts = np.array([
         [-ground_width/2, -ground_length/2, 0],
         [ground_width/2, -ground_length/2, 0],
@@ -57,11 +74,13 @@ def create_avm(images, rvecs, tvecs, camera_matrix, dist_coeffs, output_size=(10
     warped_images = []
     
     for i in range(3):
+        pose = relative_poses[i]
+        
         # Project ground points to image
         img_pts, _ = cv2.projectPoints(
             ground_pts,
-            rvecs[i],
-            tvecs[i],
+            pose['rvec'],
+            pose['t'],
             new_camera_matrix,
             None
         )
@@ -75,9 +94,9 @@ def create_avm(images, rvecs, tvecs, camera_matrix, dist_coeffs, output_size=(10
             [0, output_size[1]-1]
         ], dtype=np.float32)
         
-        # Compute homography (using RANSAC for robustness)
+        # Compute homography
         H, status = cv2.findHomography(img_pts, output_pts, cv2.RANSAC, 5.0)
-        if H is None or np.sum(status) < 2:  # At least 2 good points
+        if H is None or np.sum(status) < 2:
             raise ValueError(f"Failed to compute homography for image {i+1}")
         homographies.append(H)
         
@@ -90,23 +109,28 @@ def create_avm(images, rvecs, tvecs, camera_matrix, dist_coeffs, output_size=(10
         )
         warped_images.append(warped)
     
-    # 5. Improved blending with alpha masks
+    # 5. Improved blending with distance-based weights
     masks = []
-    for warped in warped_images:
+    for i, warped in enumerate(warped_images):
         mask = (warped > 0).any(axis=2).astype(np.float32)
-        # Create distance-based weights
+        
+        # Create weights based on distance from image center
         y, x = np.indices(mask.shape)
-        center = np.array([output_size[0]/2, output_size[1]/2])
+        if i == 0:  # Center weight for reference image
+            center = np.array([output_size[0]/2, output_size[1]/2])
+        else:  # Offset weight for other images
+            offset_x = 100 if i == 1 else -100  # Adjust based on camera position
+            center = np.array([output_size[0]/2 + offset_x, output_size[1]/2])
+            
         dist = np.sqrt((x-center[0])**2 + (y-center[1])**2)
         max_dist = np.sqrt(center[0]**2 + center[1]**2)
         mask = mask * (1 - dist/max_dist)
         masks.append(mask)
     
-    # Normalize masks
+    # Normalize and blend
     mask_sum = np.stack(masks).sum(axis=0)
     mask_sum[mask_sum == 0] = 1  # Avoid division by zero
     
-    # Blend images
     birdseye_view = np.zeros((output_size[1], output_size[0], 3), dtype=np.float32)
     for warped, mask in zip(warped_images, masks):
         birdseye_view += warped.astype(np.float32) * (mask/mask_sum)[..., np.newaxis]
@@ -114,7 +138,8 @@ def create_avm(images, rvecs, tvecs, camera_matrix, dist_coeffs, output_size=(10
     return birdseye_view.astype(np.uint8), warped_images
 
 if __name__ == "__main__":
-    data_dir = Path('/home/william/Codes/vp/data/zed_360')
+    project_dir = Path.cwd().parent
+    data_dir = project_dir / Path('data/zed_360')
     images = []
     rvecs = []
     tvecs = []
