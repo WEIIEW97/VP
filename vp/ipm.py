@@ -47,12 +47,16 @@ class IPM:
         K_src,
         dist,
         img_size,
-        yaw_c_b,
-        pitch_c_b,
-        roll_c_b,
-        tx_b_c,
-        ty_b_c,
-        tz_b_c,
+        R_c_b=None,
+        t_c_b=None,
+        rvec=None,
+        tvec=None,
+        yaw_c_b=None,
+        pitch_c_b=None,
+        roll_c_b=None,
+        tx_b_c=None,
+        ty_b_c=None,
+        tz_b_c=None,
         is_fisheye=False,
     ):
         self.K_src = K_src
@@ -60,6 +64,18 @@ class IPM:
         self.img_size = img_size
         self.is_fisheye = is_fisheye
 
+        if R_c_b is not None and t_c_b is not None:
+            self.R_c_b = R_c_b
+            self.t_c_b = t_c_b
+        elif rvec is not None and tvec is not None:
+            self.R_c_b, _ = cv2.Rodrigues(rvec)
+            self.t_c_b = tvec
+        elif all(v is not None for v in [yaw_c_b, pitch_c_b, roll_c_b, tx_b_c, ty_b_c, tz_b_c]):
+            self.R_c_b = self.YPR2R(np.array([yaw_c_b, pitch_c_b, roll_c_b]))
+            self.t_c_b = -self.R_c_b @ np.array([tx_b_c, ty_b_c, tz_b_c])
+        else:
+            raise ValueError("Invalid parameter combination!")
+        
         if not self.is_fisheye:
             self.K_dst = cv2.getOptimalNewCameraMatrix(
                 K_src, dist, img_size, -1, img_size, True
@@ -69,15 +85,12 @@ class IPM:
                 K_src, dist[:4], img_size, np.eye(3)
             )
 
-        R_c_b = self.YPR2R(np.array([yaw_c_b, pitch_c_b, roll_c_b]))
-        t_b_c = np.array([tx_b_c, ty_b_c, tz_b_c])
-        self.t_c_b = -R_c_b @ t_b_c
-
     def ProjectPointUV2BEVXY(
         self, uv, R_c_g=None, yaw_c_g=None, pitch_c_g=None, roll_c_g=None
     ):
         if R_c_g is None:
-            R_c_g = self.YPR2R(np.array([yaw_c_g, pitch_c_g, roll_c_g]))
+            # R_c_g = self.YPR2R(np.array([yaw_c_g, pitch_c_g, roll_c_g]))
+            R_c_g = self.R_c_b
 
         uv_src = np.array([uv], dtype=np.float32)
         if not self.is_fisheye:
@@ -101,7 +114,8 @@ class IPM:
         self, uvs, R_c_g=None, yaw_c_g=None, pitch_c_g=None, roll_c_g=None
     ):
         if R_c_g is None:
-            R_c_g = self.YPR2R(np.array([yaw_c_g, pitch_c_g, roll_c_g]))
+            # R_c_g = self.YPR2R(np.array([yaw_c_g, pitch_c_g, roll_c_g]))
+            R_c_g = self.R_c_b
 
         uv_src = np.array(uvs, dtype=np.float32).reshape(-1, 1, 2)
         if not self.is_fisheye:
@@ -128,7 +142,8 @@ class IPM:
         self, xy, R_c_g=None, yaw_c_g=None, pitch_c_g=None, roll_c_g=None
     ):
         if R_c_g is None:
-            R_c_g = self.YPR2R(np.array([yaw_c_g, pitch_c_g, roll_c_g]))
+            # R_c_g = self.YPR2R(np.array([yaw_c_g, pitch_c_g, roll_c_g]))
+            R_c_g = self.R_c_b
 
         line = self.LimitBEVLine(R_c_g, self.t_c_b)
         bev_xy = np.array([xy[0], self.LimitBEVy(line, xy), 1])
@@ -141,7 +156,8 @@ class IPM:
         self, xys, R_c_g=None, yaw_c_g=None, pitch_c_g=None, roll_c_g=None
     ):
         if R_c_g is None:
-            R_c_g = self.YPR2R(np.array([yaw_c_g, pitch_c_g, roll_c_g]))
+            # R_c_g = self.YPR2R(np.array([yaw_c_g, pitch_c_g, roll_c_g]))
+            R_c_g = self.R_c_b
 
         line = self.LimitBEVLine(R_c_g, self.t_c_b)
         H_i_g = self.TransformGround2Image(R_c_g, self.t_c_b)
@@ -241,19 +257,22 @@ class IPM:
         limit_y = max(max(limit_y1, line[2][0]), max(limit_y2, line[2][2]))
         return y if y > limit_y else limit_y
 
-    def TransformImage2Ground(self, R_c_g, t_c_g):
-        return np.linalg.inv(self.TransformGround2Image(R_c_g, t_c_g))
+    @staticmethod
+    def TransformImage2Ground(R_c_g, t_c_g):
+        return np.linalg.inv(IPM.TransformGround2Image(R_c_g, t_c_g))
 
-    def TransformGround2Image(self, R_c_g, t_c_g):
+    @staticmethod
+    def TransformGround2Image(R_c_g, t_c_g):
         return np.array(
             [
-                [R_c_g[0, 0], R_c_g[0, 1], t_c_g[0]],
-                [R_c_g[1, 0], R_c_g[1, 1], t_c_g[1]],
-                [R_c_g[2, 0], R_c_g[2, 1], t_c_g[2]],
+                [R_c_g[0, 0], R_c_g[0, 1], t_c_g[0, 0]],
+                [R_c_g[1, 0], R_c_g[1, 1], t_c_g[1, 0]],
+                [R_c_g[2, 0], R_c_g[2, 1], t_c_g[2, 0]],
             ]
         )
 
-    def R2YPR(self, R):
+    @staticmethod
+    def R2YPR(R):
         n = R[:, 0]
         o = R[:, 1]
         a = R[:, 2]
@@ -267,7 +286,8 @@ class IPM:
 
         return np.array([y, p, r]) * 180 / math.pi
 
-    def YPR2R(self, ypr):
+    @staticmethod
+    def YPR2R(ypr):
         y, p, r = ypr * math.pi / 180
 
         Rz = np.array(
@@ -284,7 +304,8 @@ class IPM:
 
         return Rz @ Ry @ Rx
 
-    def SpaceToPlane(self, p3d, K, D, is_fisheye):
+    @staticmethod
+    def SpaceToPlane(p3d, K, D, is_fisheye):
         if not is_fisheye:
             p_u = (p3d[0] / p3d[2], p3d[1] / p3d[2])
 
@@ -326,4 +347,3 @@ class IPM:
             r_val = r(k2, k3, k4, k5, theta)
             p_u = (r_val * math.cos(phi), r_val * math.sin(phi))
             return (K[0, 0] * p_u[0] + K[0, 2], K[1, 1] * p_u[1] + K[1, 2])
-
