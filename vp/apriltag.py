@@ -33,6 +33,7 @@ class AprilGridDetector:
         detections: List[aprilgrid.detection.Detection],
         K: np.ndarray,
         dist_coeff: np.ndarray,
+        id_end: int,
     ):
         """
         Estimate camera pose relative to AprilGrid
@@ -47,6 +48,8 @@ class AprilGridDetector:
 
         for i in range(len(detections)):
             marker_id = detections[i].tag_id
+            if marker_id > id_end:
+                continue
             corners = detections[i].corners
             row = marker_id // self.grid_size[1]
             col = marker_id % self.grid_size[1]
@@ -81,11 +84,11 @@ class AprilGridDetector:
 
 def main():
     detector = AprilGridDetector()
-    
+
     project_dir = Path.cwd().parent
-    data_path = project_dir / Path('data/zed_360')
+    data_path = project_dir / Path("data/zed_360")
     image_paths = sorted(data_path.glob("*.png"))
-    
+
     # First pass: collect all poses
     poses = []
     for image_path in image_paths:
@@ -93,14 +96,14 @@ def main():
         im = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
         im_raw = cv2.imread(str(image_path))
         ret = detector.detect(im)
-        
+
         if len(ret) < 2:
             print(f"Skipping {image_path.name} - not enough markers detected")
             continue
-            
+
         rvec, tvec = detector.estimate_pose(ret, ZED_K, ZED_DIST)
         poses.append((im_raw, rvec, tvec))
-    
+
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,21 @@
+from dataclasses import dataclass
 import cv2
 import numpy as np
 import math
+
+
+@dataclass
+class IPMInfo:
+    x_scale: float = 100
+    y_scale: float = 100
+    width: int = 1000
+    height: int = 1000
+    vp_portion: float = 0.15
+    boundary_left: int = 20
+    boundary_right: int = 20
+    boundary_top: int = 20
+    boundary_bottom: int = 20
+
 
 class PoseGather:
     def __init__(self, pitch_offset=0.0):
@@ -70,12 +85,15 @@ class IPM:
         elif rvec is not None and tvec is not None:
             self.R_c_b, _ = cv2.Rodrigues(rvec)
             self.t_c_b = tvec
-        elif all(v is not None for v in [yaw_c_b, pitch_c_b, roll_c_b, tx_b_c, ty_b_c, tz_b_c]):
+        elif all(
+            v is not None
+            for v in [yaw_c_b, pitch_c_b, roll_c_b, tx_b_c, ty_b_c, tz_b_c]
+        ):
             self.R_c_b = self.YPR2R(np.array([yaw_c_b, pitch_c_b, roll_c_b]))
             self.t_c_b = -self.R_c_b @ np.array([tx_b_c, ty_b_c, tz_b_c])
         else:
             raise ValueError("Invalid parameter combination!")
-        
+
         if not self.is_fisheye:
             self.K_dst = cv2.getOptimalNewCameraMatrix(
                 K_src, dist, img_size, -1, img_size, True
@@ -193,44 +211,52 @@ class IPM:
         pitch_imu_est = roll_c_g
         return pitch_measurement - pitch_imu_est
 
-    # def GetIPMImage(
-    #     self, image, ipm_info, R_c_g=None, yaw_c_g=None, pitch_c_g=None, roll_c_g=None
-    # ):
-    #     if R_c_g is None:
-    #         R_c_g = self.YPR2R(np.array([yaw_c_g, pitch_c_g, roll_c_g]))
+    def GetIPMImage(
+        self,
+        image: np.ndarray,
+        ipm_info: IPMInfo,
+        R_c_g=None,
+        yaw_c_g=None,
+        pitch_c_g=None,
+        roll_c_g=None,
+    ):
+        if R_c_g is None:
+            R_c_g = self.YPR2R(np.array([yaw_c_g, pitch_c_g, roll_c_g]))
 
-    #     K_g = np.array(
-    #         [
-    #             [ipm_info["x_scale"], 0, 0.5 * (ipm_info["width"] - 1)],
-    #             [0, -ipm_info["y_scale"], ipm_info["height"] - 1],
-    #             [0, 0, 1],
-    #         ]
-    #     )
-    #     ipm_size = (ipm_info["width"], ipm_info["height"])
+        K_g = np.array(
+            [
+                [ipm_info.x_scale, 0, 0.5 * (ipm_info.width - 1)],
+                [0, -ipm_info.y_scale, 0.5 * (ipm_info.height - 1)],
+                [0, 0, 1],
+            ]
+        )
 
-    #     H_i_g = self.TransformGround2Image(R_c_g, self.t_c_b)
-    #     H_i_g = self.K_dst @ H_i_g @ np.linalg.inv(K_g)
+        H_i_g = self.TransformGround2Image(R_c_g, self.t_c_b)
+        H = self.K_dst @ H_i_g @ np.linalg.inv(K_g)
 
-    #     if not self.is_fisheye:
-    #         img_undist = cv2.undistort(image, self.K_src, self.dist, None, self.K_dst)
-    #     else:
-    #         img_undist = cv2.fisheye.undistortImage(
-    #             image, self.K_src, self.dist[:4], None, self.K_dst
-    #         )
+        if not self.is_fisheye:
+            img_undist = cv2.undistort(image, self.K_src, self.dist, None, self.K_dst)
+        else:
+            img_undist = cv2.fisheye.undistortImage(
+                image, self.K_src, self.dist[:4], None, self.K_dst
+            )
 
-    #     map_x = np.zeros(ipm_size[::-1], dtype=np.float32)
-    #     map_y = np.zeros(ipm_size[::-1], dtype=np.float32)
+        # j, i = np.meshgrid(np.arange(ipm_info.width), np.arange(ipm_info.height))
+        # xy_hom = np.stack([j, i, np.ones_like(j)], axis=1)  # (h,w,3)
 
-    #     for i in range(ipm_size[1]):
-    #         for j in range(ipm_size[0]):
-    #             xy = np.array([j, i, 1])
-    #             uv = H_i_g @ xy
-    #             uv /= uv[2]
-    #             map_x[i, j] = uv[0]
-    #             map_y[i, j] = uv[1]
+        # uv_hom = (H @ xy_hom.reshape(-1, 3).T).T  # (h*w, 3)
+        # uv_hom /= uv_hom[:, 2:3]
 
-    #     ipm_img = cv2.remap(img_undist, map_x, map_y, cv2.INTER_LINEAR)
-    #     return ipm_img
+        # map_x = uv_hom[:, 0].reshape(ipm_info.height, ipm_info.width).astype(np.float32)
+        # map_y = uv_hom[:, 1].reshape(ipm_info.height, ipm_info.width).astype(np.float32)
+
+        # return cv2.remap(img_undist, map_x, map_y, cv2.INTER_LINEAR)
+        return cv2.warpPerspective(
+            img_undist,
+            H,
+            (ipm_info.width, ipm_info.height),
+            flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP,
+        )
 
     def LimitBEVLine(self, R_c_g, t_c_g):
         bot_limit = [
