@@ -96,8 +96,8 @@ class IPM:
 
         if not self.is_fisheye:
             self.K_dst = cv2.getOptimalNewCameraMatrix(
-                K_src, dist, img_size, -1, img_size, True
-            )[0]
+                K_src, dist, img_size, 1, img_size, True
+            )[0] # alpha=1, bigger fov, ow make it -1
         else:
             self.K_dst = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(
                 K_src, dist[:4], img_size, np.eye(3)

@@ -6,7 +6,7 @@ import pandas as pd
 
 pd.set_option("display.float_format", "{:.3f}".format)
 
-from python.ipm import *
+from vp.ipm import *
 
 def plot_pose_analysis(recorder):
     # Set style
