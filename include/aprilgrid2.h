@@ -43,8 +43,9 @@ public:
     cv::Mat tvec;
   } Pose;
 
-  Aprilgrid(AprilgridConfig& config, cv::Mat& image);
+  Aprilgrid(AprilgridConfig& config);
 
+  void feed(const cv::Mat& image);
   std::map<int, int> findCorners(int minimum_valid_april_threshold = 5);
   const std::map<int, std::vector<std::pair<cv::Point2f, cv::Point3f>>>&
   getCorners(void) const;

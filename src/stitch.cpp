@@ -56,3 +56,26 @@ BEVPack process_single_bev(cv::Mat& im_rgb, Aprilgrid& detector,
 
   return bev_pack;
 };
+
+cv::Mat stitch(const std::vector<std::string>& image_paths, float ipm_x_scale,
+               float ipm_y_scale, int ref_image_idx, bool show_result) {
+  auto ap_config = Aprilgrid::AprilgridConfig();
+  ap_config.board_size = cv::Size(6, 4);
+  ap_config.marker_length = 0.04;
+  ap_config.marker_separation = 0.012;
+
+  auto ap_detector = Aprilgrid(ap_config);
+
+  std::vector<cv::Mat> images;
+  for (const auto& path : image_paths) {
+    cv::Mat image = cv::imread(path, cv::IMREAD_ANYCOLOR);
+    if (image.empty()) {
+      fmt::print("Failed to read image: {}\n", path);
+      continue;
+    }
+    images.push_back(image);
+    ap_detector.feed(image);
+    auto id_map = ap_detector.findCorners();
+    
+  }
+}

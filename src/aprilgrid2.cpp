@@ -27,18 +27,18 @@
 #include <opencv2/imgproc.hpp>
 #include <memory>
 
-Aprilgrid::Aprilgrid(AprilgridConfig& config, cv::Mat& image)
+Aprilgrid::Aprilgrid(AprilgridConfig& config)
     : max_subpix_displacement2_(5.991), min_border_distance_(4.0),
-      black_tag_border_(2), board_config_(config), corners_found_(false) {
+      black_tag_border_(2), board_config_(config), corners_found_(false) {}
+
+void Aprilgrid::feed(const cv::Mat& image) {
+  CV_Assert(!image.empty());
   if (image.channels() == 1) {
-    // cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(3.0, cv::Size(8, 8));
-    // clahe->apply(image, image);
-    cv::cvtColor(image, sketch_, cv::COLOR_GRAY2BGR);
     image.copyTo(image_);
   } else {
-    image.copyTo(sketch_);
     cv::cvtColor(image, image_, cv::COLOR_BGR2GRAY);
   }
+  image_.copyTo(sketch_);
 }
 
 std::map<int, int> Aprilgrid::findCorners(int minimum_valid_april_threshold) {
