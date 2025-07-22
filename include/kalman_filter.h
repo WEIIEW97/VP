@@ -18,7 +18,7 @@
 
 // kalman-filter header-only implementation
 
-#include <Eigen/Dense>
+#include <eigen3/Eigen/Dense>
 
 template <int StateDim, int MeasDim>
 class KalmanFilter {

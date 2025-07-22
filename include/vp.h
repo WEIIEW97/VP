@@ -26,7 +26,7 @@
 #include <utility>
 #include <deque>
 
-#include "kf.h"
+#include "kalman_filter.h"
 
 enum class CameraModel {
   pinhole_k6,

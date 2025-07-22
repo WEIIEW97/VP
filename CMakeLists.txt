@@ -7,10 +7,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(Eigen3 REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(fmt REQUIRED)
+find_package(OpenCV REQUIRED)
 
 set(VP_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(ethzasl_apriltag2_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rd/ethzasl_apriltag2/include)
 
 file(GLOB_RECURSE sources ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+
+add_subdirectory(3rd)
 
 add_executable(
         ${PROJECT_NAME}
@@ -25,6 +29,8 @@ target_include_directories(
         ${fmt_INCLUDE_DIRS}
         ${EIGEN3_INCLUDE_DIR}
         ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}
+        ${OpenCV_INCLUDE_DIRS}
+        ${ethzasl_apriltag2_INCLUDE_DIR}
 )
 
 target_link_libraries(
@@ -32,4 +38,6 @@ target_link_libraries(
         PRIVATE
         nlohmann_json::nlohmann_json
         fmt::fmt
+        ${OpenCV_LIBS}
+        ethzasl_apriltag2
 )
