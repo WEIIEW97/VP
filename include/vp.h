@@ -306,6 +306,8 @@ public:
   Eigen::Vector2f
   get_vp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts);
   Eigen::Vector2f get_yp_est_by_vp(const Eigen::Vector2f& vp);
+  Eigen::Matrix3f get_K() const;
+  Eigen::VectorXf get_dist() const;
 
 private:
   Eigen::Matrix3f K_;

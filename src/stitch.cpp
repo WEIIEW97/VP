@@ -33,14 +33,16 @@ cv::Mat get_homogeneous_transform(const cv::Mat& rvec, const cv::Mat& tvec) {
 }
 
 BEVPack process_single_bev(cv::Mat& im_rgb, Aprilgrid& detector,
-                           const IPM::IPMInfo& ipm_info, const cv::Mat& K,
+                           const IPM::IPMInfo& ipm_info, const cv::Matx33d& K,
                            const cv::Vec<double, 8>& dist) {
   BEVPack bev_pack;
 
   cv::Mat im;
   cv::cvtColor(im_rgb, im, cv::COLOR_BGR2GRAY);
+  auto map_id = detector.findCorners();
   auto corners = detector.getCorners();
-  auto ret = detector.estimatePose(corners, K, dist, 1);
+  cv::Mat K_mat = cv::Mat(K);
+  auto ret = detector.estimatePose(corners, K_mat, dist, 1);
   if (ret.rvec.empty() || ret.tvec.empty()) {
     fmt::print("Pose estimation failed, returning empty BEVPack.\n");
     return bev_pack; // Return empty BEVPack if pose estimation fails
@@ -66,7 +68,15 @@ cv::Mat stitch(const std::vector<std::string>& image_paths, float ipm_x_scale,
 
   auto ap_detector = Aprilgrid(ap_config);
 
+  IPM::IPMInfo ipm_info;
+  ipm_info.x_scale = ipm_x_scale;
+  ipm_info.y_scale = ipm_y_scale;
+
+  cv::Matx33d K(700.0400, 0, 630.6500, 0, 700.0400, 331.5925, 0, 0, 1);
+  cv::Vec<double, 8> dist(-0.1724, 0.0270, 0.0024, 0.0003, 0, 0, 0, 0);
+  
   std::vector<cv::Mat> images;
+  std::vector<BEVPack> packs;
   for (const auto& path : image_paths) {
     cv::Mat image = cv::imread(path, cv::IMREAD_ANYCOLOR);
     if (image.empty()) {
@@ -75,7 +85,10 @@ cv::Mat stitch(const std::vector<std::string>& image_paths, float ipm_x_scale,
     }
     images.push_back(image);
     ap_detector.feed(image);
-    auto id_map = ap_detector.findCorners();
-    
+    auto pack = process_single_bev(image, ap_detector, ipm_info, K, dist);
+    packs.push_back(pack);
   }
+
+  cv::Mat total_bev = cv::Mat::zeros(packs[0].bev_image.size(), CV_64FC3);
+  
 }

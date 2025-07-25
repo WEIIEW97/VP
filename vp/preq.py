@@ -6,6 +6,7 @@ import torch
 
 # from geocalib import GeoCalib
 from typing import Dict
+from utils import load_json, locate_indices
 
 
 def rad2deg(rad: torch.Tensor) -> torch.Tensor:
@@ -87,6 +88,8 @@ def retrieve_pack_info_by_frame(frames_struct, frame_id, key="lanes"):
     struct = json.loads(frames_struct[frame_id - 1])[key]
     return struct
 
+def retrive_pack_info_by_id(json_file, frame_id, key="lane"):
+    return json_file[str(frame_id - 1)][key]
 
 def judge_valid(struct):
     return sum(1 for lst in struct if lst)
@@ -179,7 +182,7 @@ class VP:
 
     def line_fit(self, frame_pts):
         for pts in frame_pts:
-            if judge_num_points(pts):
+            if judge_num_points(pts, thr=5):
                 # x = np.array([p[0] for p in pts])
                 # y = np.array([p[1] for p in pts])
 
@@ -440,32 +443,37 @@ def plot_navi_grid_fix(im: np.ndarray, uv_grid: np.ndarray, vp=None):
 
 if __name__ == "__main__":
     info_path = (
-        "/home/william/extdisk/data/motorEV/19700101_002523/19700101_002523.json"
+        "/home/william/extdisk/data/lanes/lane.json"
     )
-    image_path = "/home/william/extdisk/data/motorEV/19700101_002523/19700101_002523"
-    vis_path = "/home/william/extdisk/data/motorEV/19700101_002523/vis_smooth"
+    image_path = "/home/william/extdisk/data/lanes/person_3m_5m/frames"
+    vis_path = "/home/william/extdisk/data/lanes/person_3m_5m/vis_smooth"
+    intri_path = "/home/william/extdisk/data/lanes/intrinsics_colin.json"
     os.makedirs(vis_path, exist_ok=True)
 
-    K = np.array(
-        [1033.788708, 0, 916.010200, 0, 1033.780937, 522.486183, 0, 0, 1]
-    ).reshape((3, 3))
+    # K = np.array(
+    #     [1033.788708, 0, 916.010200, 0, 1033.780937, 522.486183, 0, 0, 1]
+    # ).reshape((3, 3))
 
-    dist_coef = np.array(
-        [
-            63.285889,
-            34.709119,
-            0.00035,
-            0.00081,
-            1.231907,
-            63.752675,
-            61.351695,
-            8.551888,
-        ]
-    )
+    # dist_coef = np.array(
+    #     [
+    #         63.285889,
+    #         34.709119,
+    #         0.00035,
+    #         0.00081,
+    #         1.231907,
+    #         63.752675,
+    #         61.351695,
+    #         8.551888,
+    #     ]
+    # )
+    intrinsics = load_json(intri_path)
+    K = np.array(intrinsics["cam_intrinsic"]).reshape((3, 3))
+    dist_coef = np.array(intrinsics["cam_distcoeffs"])[:8]
+    
 
     sample_num = len(os.listdir(image_path))
-    total_info = retrieve_info(info_path)
-
+    # total_info = retrieve_info(info_path)
+    total_info = load_json(info_path)
     x_sample = np.arange(-1, 1.25, 0.25)
     y_sample = np.arange(2, 15, 2)
 
@@ -474,7 +482,7 @@ if __name__ == "__main__":
     xy_grid = xyN_grid.reshape(2, -1)
 
     # camera height
-    cam_h = 0.73357
+    cam_h = 0.76
 
     # geo_predictor = GeoEstimator(prior_focal=K[0, 0])
     im_names = sorted(
@@ -485,10 +493,12 @@ if __name__ == "__main__":
         ]
     )
 
-    for frame_cnt in range(1, sample_num + 1):
+    begin_idx, end_index, sep = locate_indices(im_names)
+
+    for i, frame_cnt in enumerate(range(begin_idx, end_index, sep)):
         # im_name = f"{frame_cnt:04d}.png"
-        im_name = im_names[frame_cnt - 1]
-        frame_pack_raw = retrieve_pack_info_by_frame(total_info, frame_cnt)
+        im_name = im_names[i]
+        frame_pack_raw = retrive_pack_info_by_id(total_info, frame_cnt, key="lane")
         im_path = os.path.join(image_path, im_name)
         out_path = os.path.join(vis_path, im_name)
         im = cv2.imread(im_path)

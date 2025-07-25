@@ -251,3 +251,7 @@ void VP::reload() {
   homo_lst_.clear();
   vps_.clear();
 }
+
+Eigen::Matrix3f VP::get_K() const { return K_; }
+
+Eigen::VectorXf VP::get_dist() const { return dist_coef_; }
