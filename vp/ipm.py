@@ -97,11 +97,16 @@ class IPM:
         if not self.is_fisheye:
             self.K_dst = cv2.getOptimalNewCameraMatrix(
                 K_src, dist, img_size, 1, img_size, True
-            )[0] # alpha=1, bigger fov, ow make it -1
+            )[
+                0
+            ]  # alpha=1, bigger fov, ow make it -1
         else:
             self.K_dst = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(
                 K_src, dist[:4], img_size, np.eye(3)
             )
+        
+        if self.t_c_b.shape == (3,):
+            self.t_c_b = self.t_c_b.reshape((3, 1))
 
     def ProjectPointUV2BEVXY(
         self, uv, R_c_g=None, yaw_c_g=None, pitch_c_g=None, roll_c_g=None
@@ -219,17 +224,27 @@ class IPM:
         yaw_c_g=None,
         pitch_c_g=None,
         roll_c_g=None,
+        is_centered=False,
     ):
         if R_c_g is None:
             R_c_g = self.YPR2R(np.array([yaw_c_g, pitch_c_g, roll_c_g]))
 
-        K_g = np.array(
-            [
-                [ipm_info.x_scale, 0, 0.5 * (ipm_info.width - 1)],
-                [0, -ipm_info.y_scale, 0.5 * (ipm_info.height - 1)],
-                [0, 0, 1],
-            ]
-        )
+        if is_centered:
+            K_g = np.array(
+                [
+                    [ipm_info.x_scale, 0, 0.5 * (ipm_info.width - 1)],
+                    [0, -ipm_info.y_scale, 0.5 * (ipm_info.height - 1)],
+                    [0, 0, 1],
+                ]
+            )
+        else:
+            K_g = np.array(
+                [
+                    [ipm_info.x_scale, 0, 0.5 * (ipm_info.width - 1)],
+                    [0, -ipm_info.y_scale, 1 * (ipm_info.height - 1)],
+                    [0, 0, 1],
+                ]
+            )
 
         H_i_g = self.TransformGround2Image(R_c_g, self.t_c_b)
         H = self.K_dst @ H_i_g @ np.linalg.inv(K_g)
@@ -240,17 +255,6 @@ class IPM:
             img_undist = cv2.fisheye.undistortImage(
                 image, self.K_src, self.dist[:4], None, self.K_dst
             )
-
-        # j, i = np.meshgrid(np.arange(ipm_info.width), np.arange(ipm_info.height))
-        # xy_hom = np.stack([j, i, np.ones_like(j)], axis=1)  # (h,w,3)
-
-        # uv_hom = (H @ xy_hom.reshape(-1, 3).T).T  # (h*w, 3)
-        # uv_hom /= uv_hom[:, 2:3]
-
-        # map_x = uv_hom[:, 0].reshape(ipm_info.height, ipm_info.width).astype(np.float32)
-        # map_y = uv_hom[:, 1].reshape(ipm_info.height, ipm_info.width).astype(np.float32)
-
-        # return cv2.remap(img_undist, map_x, map_y, cv2.INTER_LINEAR)
         return cv2.warpPerspective(
             img_undist,
             H,
@@ -285,6 +289,7 @@ class IPM:
 
     @staticmethod
     def TransformImage2Ground(R_c_g, t_c_g):
+        print(f"t_c_g: {t_c_g}")
         return np.linalg.inv(IPM.TransformGround2Image(R_c_g, t_c_g))
 
     @staticmethod

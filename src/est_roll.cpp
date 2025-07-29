@@ -17,28 +17,24 @@
 #include "est_roll.h"
 
 #include <cmath>
-#include <fmt/format.h>
 
-Eigen::Matrix3f CameraPoseSolver::rotation_matrix(float yaw, float pitch, float roll) {
-  Eigen::Matrix3f R;
-
-  float cy = cos(yaw), sy = sin(yaw);
-  float cp = cos(pitch), sp = sin(pitch);
-  float cr = cos(roll), sr = sin(roll);
-
-  R << cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr, sy * cp,
-      sy * sp * sr + cy * cr, sy * sp * cr - cy * sr, -sp, cp * sr, cp * cr;
-  return R;
-}
-
-CameraPoseSolver::PoseResult CameraPoseSolver::solve_from_two_points(
-    const Eigen::Vector2f& uv1, const Eigen::Vector2f& uv2,
-    const Eigen::Vector3f& pw1, const Eigen::Vector3f& pw2, float cam_h,
-    float yaw, float pitch) {
+PoseResult CameraPoseSolver::solve_from_two_points(const Eigen::Vector2d& uv1,
+                                                   const Eigen::Vector2d& uv2,
+                                                   const Eigen::Vector3d& pw1,
+                                                   const Eigen::Vector3d& pw2,
+                                                   double cam_h, double yaw,
+                                                   double pitch) {
   PoseResult result;
-  ceres::Problem problem;
-  float roll = (last_roll_ == FLT_MAX) ? 0.0f : last_roll_;
-
-  
+  double roll =
+      (last_roll_ == std::numeric_limits<double>::max()) ? 0.0f : last_roll_;
+  ReprojectionErrorOptimizer optimizer(uv1, uv2, pw1, pw2, cam_h, yaw, pitch,
+                                       K_);
+  auto [best_roll, best_reproj_error] = optimizer.optimize();
+  auto est_R = ypr2R(yaw, pitch, best_roll);
+  auto T_b_c = Eigen::Vector3d(0, 0, -cam_h);
+  result.roll = best_roll;
+  result.R = est_R;
+  result.T = T_b_c;
+  result.reproj_error = best_reproj_error;
   return result;
 }

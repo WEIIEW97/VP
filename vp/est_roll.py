@@ -18,9 +18,6 @@ class CameraPoseSolver:
             K: 3x3 camera intrinsic matrix
         """
         self.K = K
-        self.K_inv = np.linalg.inv(K)
-        self.fx, self.fy = K[0, 0], K[1, 1]  # Focal lengths
-        self.cx, self.cy = K[0, 2], K[1, 2]  # Principal point
 
         # Cache recent results for smoothing
         self.last_roll = None
@@ -91,7 +88,7 @@ class CameraPoseSolver:
             return np.concatenate([uv1_reproj - uv1, uv2_reproj - uv2])
 
         # Try multiple initial guesses (including last result)
-        init_guesses = np.linspace(-np.pi, np.pi, 7)
+        init_guesses = np.linspace(-np.pi/6, np.pi/6, 7)
         if self.last_roll is not None:
             init_guesses = np.insert(init_guesses, 0, self.last_roll)
 

@@ -50,9 +50,9 @@ inline Eigen::MatrixXi generate_sample_points(int n, int w, int h) {
 
 template <typename T>
 Eigen::Matrix<T, 3, 3> ypr2R(const T& yaw, const T& pitch, const T& roll) {
-  T cy = std::cos(deg2rag(yaw)), sy = std::sin(deg2rag(yaw));
-  T cp = std::cos(deg2rag(pitch)), sp = std::sin(deg2rag(pitch));
-  T cr = std::cos(deg2rag(roll)), sr = std::sin(deg2rag(roll));
+  T cy = std::cos(yaw), sy = std::sin(yaw);
+  T cp = std::cos(pitch), sp = std::sin(pitch);
+  T cr = std::cos(roll), sr = std::sin(roll);
 
   Eigen::Matrix<T, 3, 3> R;
   R << cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr, sy * cp,

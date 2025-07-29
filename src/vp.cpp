@@ -18,6 +18,8 @@
 #include <cmath>
 #include <fmt/format.h>
 
+#include "est_roll.h"
+
 bool VP::judge_valid(const std::vector<Eigen::MatrixXf>& frame_pts, int thr) {
   return frame_pts.size() >= thr;
 }
@@ -255,3 +257,33 @@ void VP::reload() {
 Eigen::Matrix3f VP::get_K() const { return K_; }
 
 Eigen::VectorXf VP::get_dist() const { return dist_coef_; }
+
+Eigen::Vector3f
+VP::get_ypr_estimation(const std::vector<Eigen::MatrixXf>& frame_pts,
+                       const Eigen::Vector2d& uv1, const Eigen::Vector2d& uv2,
+                       const Eigen::Vector3d& pw1, const Eigen::Vector3d& pw2,
+                       double cam_h) {
+  auto yp = get_yp_estimation(frame_pts);
+  CameraPoseSolver roll_solver(K_);
+
+  auto pose = roll_solver.solve_from_two_points(uv1, uv2, pw1, pw2, cam_h,
+                                                static_cast<double>(yp(0)),
+                                                static_cast<double>(yp(1)));
+
+  return Eigen::Vector3f(yp(0), yp(1), static_cast<float>(pose.roll));
+}
+
+Eigen::Matrix3f VP::get_R(const std::vector<Eigen::MatrixXf>& frame_pts,
+                          const Eigen::Vector2d& uv1,
+                          const Eigen::Vector2d& uv2,
+                          const Eigen::Vector3d& pw1,
+                          const Eigen::Vector3d& pw2, double cam_h) {
+  auto yp = get_yp_estimation(frame_pts);
+  CameraPoseSolver roll_solver(K_);
+
+  auto pose = roll_solver.solve_from_two_points(uv1, uv2, pw1, pw2, cam_h,
+                                                static_cast<double>(yp(0)),
+                                                static_cast<double>(yp(1)));
+  auto r = pose.R;
+  return r.cast<float>();
+}

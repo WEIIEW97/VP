@@ -26,8 +26,6 @@
 #include <utility>
 #include <deque>
 
-#include "../src/kalman_filter.h"
-
 enum class CameraModel {
   pinhole_k6,
   fisheye,
@@ -296,7 +294,7 @@ private:
   void compute_vp();
   Eigen::Vector2f filter_candidates(const std::string& strategy);
   Eigen::Vector2f temporal_smooth(const Eigen::Vector2f& vp);
-  Eigen::Vector2f kalman_smooth(const Eigen::Vector2f & vp);
+  // Eigen::Vector2f kalman_smooth(const Eigen::Vector2f & vp);
   Eigen::Vector2f estimate_yp(const Eigen::Vector2f& vp);
   void reload();
 
@@ -305,6 +303,15 @@ public:
   get_yp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts);
   Eigen::Vector2f
   get_vp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts);
+  Eigen::Vector3f
+  get_ypr_estimation(const std::vector<Eigen::MatrixXf>& frame_pts,
+                     const Eigen::Vector2d& uv1, const Eigen::Vector2d& uv2,
+                     const Eigen::Vector3d& pw1, const Eigen::Vector3d& pw2,
+                     double cam_h);
+  Eigen::Matrix3f get_R(const std::vector<Eigen::MatrixXf>& frame_pts,
+                        const Eigen::Vector2d& uv1, const Eigen::Vector2d& uv2,
+                        const Eigen::Vector3d& pw1, const Eigen::Vector3d& pw2,
+                        double cam_h);
   Eigen::Vector2f get_yp_est_by_vp(const Eigen::Vector2f& vp);
   Eigen::Matrix3f get_K() const;
   Eigen::VectorXf get_dist() const;

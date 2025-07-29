@@ -7,6 +7,10 @@ import torch
 # from geocalib import GeoCalib
 from typing import Dict
 from utils import load_json, locate_indices
+from est_roll import CameraPoseSolver
+from ipm import IPM, IPMInfo, PoseGather
+
+import matplotlib.pyplot as plt
 
 
 def rad2deg(rad: torch.Tensor) -> torch.Tensor:
@@ -88,8 +92,10 @@ def retrieve_pack_info_by_frame(frames_struct, frame_id, key="lanes"):
     struct = json.loads(frames_struct[frame_id - 1])[key]
     return struct
 
+
 def retrive_pack_info_by_id(json_file, frame_id, key="lane"):
     return json_file[str(frame_id - 1)][key]
+
 
 def judge_valid(struct):
     return sum(1 for lst in struct if lst)
@@ -441,10 +447,14 @@ def plot_navi_grid_fix(im: np.ndarray, uv_grid: np.ndarray, vp=None):
 
     return im
 
-if __name__ == "__main__":
-    info_path = (
-        "/home/william/extdisk/data/lanes/lane.json"
-    )
+def get_ground_pts_by_box(box:list):
+    flatten = lambda data: flatten(data[0]) if isinstance(data, list) and len(data) == 1 and isinstance(data[0], list) else data
+    tlx, tly, brx, bry = flatten(box)
+    return np.array([(tlx+brx)/2, bry])
+
+
+def main():
+    info_path = "/home/william/extdisk/data/lanes/lane.json"
     image_path = "/home/william/extdisk/data/lanes/person_3m_5m/frames"
     vis_path = "/home/william/extdisk/data/lanes/person_3m_5m/vis_smooth"
     intri_path = "/home/william/extdisk/data/lanes/intrinsics_colin.json"
@@ -469,7 +479,6 @@ if __name__ == "__main__":
     intrinsics = load_json(intri_path)
     K = np.array(intrinsics["cam_intrinsic"]).reshape((3, 3))
     dist_coef = np.array(intrinsics["cam_distcoeffs"])[:8]
-    
 
     sample_num = len(os.listdir(image_path))
     # total_info = retrieve_info(info_path)
@@ -553,3 +562,87 @@ if __name__ == "__main__":
                 cv2.imwrite(out_path, im)
 
     print("done!")
+
+
+def main_est_roll():
+    info_path = "/home/william/Codes/vp/data/lanes/lane.json"
+    img_dir = "/home/william/Codes/vp/data/lanes/samples"
+    box_path = "/home/william/Codes/vp/data/lanes/person.json"
+    intri_path = "/home/william/Codes/vp/data/lanes/intrinsics_colin.json"
+
+    intrinsics = load_json(intri_path)
+    K = np.array(intrinsics["cam_intrinsic"]).reshape((3, 3))
+    dist_coef = np.array(intrinsics["cam_distcoeffs"])[:8]
+
+    boxes = load_json(box_path)
+
+    total_info = load_json(info_path)
+    cam_h = 0.76
+
+    im_names = sorted(
+        [f for f in os.listdir(img_dir) if os.path.isfile(os.path.join(img_dir, f))]
+    )
+    sample_ids = [180, 1970]
+    frame_pack_raw = retrive_pack_info_by_id(total_info, sample_ids[0])
+    vp = VP(K, dist_coef)
+    frame_pack = vp.undistort_points(frame_pack_raw)
+
+    vp.line_fit(frame_pack)
+    if vp.line_fit_flag:
+        vp.compute_vp()
+        vanishing_point = vp.filter_candidates("close")
+        yaw, pitch = vp.estimate_yp(vanishing_point)
+        print(f"Sample: Yaw: {yaw:.2f}, Pitch: {pitch:.2f}")
+    else:
+        print(f"Sample: unable to collect sufficient number of lane points")
+
+    vp2 = VP(K, dist_coef)
+    frame_pack_raw2 = retrive_pack_info_by_id(total_info, sample_ids[1])
+    frame_pack2 = vp2.undistort_points(frame_pack_raw2)
+    vp2.line_fit(frame_pack2)
+    if vp2.line_fit_flag:
+        vp2.compute_vp()
+        vanishing_point2 = vp2.filter_candidates("close")
+        yaw2, pitch2 = vp2.estimate_yp(vanishing_point2)
+        print(f"Sample: Yaw: {yaw2:.2f}, Pitch: {pitch2:.2f}")
+    else:
+        print(f"Sample: unable to collect sufficient number of lane points")
+
+    Pw1 = np.array([0, 3, 0])
+    Pw2 = np.array([0, 5, 0])
+
+    box1 = retrive_pack_info_by_id(boxes, sample_ids[0], key="person")
+    box2 = retrive_pack_info_by_id(boxes, sample_ids[1], key="person")
+
+    uv1 = get_ground_pts_by_box(box1)
+    uv2 = get_ground_pts_by_box(box2)
+    
+    solver = CameraPoseSolver(K)
+    res = solver.solve_from_two_points(
+        uv1, uv2, Pw1, Pw2, cam_h, yaw, pitch
+    )
+    # print(f"Roll: {solver.safe_rad2deg(res['roll']):.2f}°")
+    print(f"Roll: {res['roll']:.2f}°")
+
+    pose_g = PoseGather()
+    ypr = pose_g.get_pose_imu(yaw, pitch, res["roll"])
+    print(ypr)
+
+    ipm = IPM(K, dist_coef, (1920, 1080), yaw_c_b=ypr[0], pitch_c_b=ypr[1], roll_c_b=ypr[2], tx_b_c=0, ty_b_c=0, tz_b_c=cam_h)
+    ipm_info = IPMInfo()
+    ipm_info.x_scale = 200
+    ipm_info.y_scale = 200
+
+
+    img_rgb = cv2.imread("/home/william/Codes/vp/data/lanes/samples/frame_000180.jpg")
+    ipm_img = ipm.GetIPMImage(img_rgb, ipm_info, yaw_c_g=ypr[0], pitch_c_g=ypr[1], roll_c_g=ypr[2])
+    plt.figure()
+    plt.imshow(ipm_img)
+    plt.axis("off")
+    plt.tight_layout()
+    plt.show()
+
+
+    
+if __name__ == "__main__":
+    main_est_roll()
