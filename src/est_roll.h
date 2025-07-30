@@ -121,7 +121,7 @@ public:
     };
   }
 
-  std::tuple<double, double> optimize_single(double init_roll) {
+  std::tuple<double, double> optimize_auto(double init_roll) {
     ceres::Problem problem;
     problem.AddResidualBlock(new ceres::AutoDiffCostFunction<CostFunctor, 4, 1>(
                                  new CostFunctor(this)),
@@ -174,7 +174,7 @@ public:
     auto optimizer = [&](double init_roll) {
       auto [est_roll, reproj_error] = (mode == CeresSolverMode::Tiny)
                                           ? optimize_tiny(init_roll)
-                                          : optimize_single(init_roll);
+                                          : optimize_auto(init_roll);
 
       if (reproj_error < best_reproj_error) {
         best_reproj_error = reproj_error;
