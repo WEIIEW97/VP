@@ -26,8 +26,8 @@
 
 struct PoseResult {
   double roll;
-  Eigen::Matrix3d R;
-  Eigen::Vector3d T;
+  Eigen::Matrix3d R_c_g;
+  Eigen::Vector3d T_c_g;
   double reproj_error;
 };
 
@@ -39,11 +39,10 @@ public:
                                    const Eigen::Vector2d& uv2,
                                    const Eigen::Vector3d& pw1,
                                    const Eigen::Vector3d& pw2, double cam_h,
-                                   double yaw, double pitch);
+                                   double yaw_c_g, double pitch_c_g);
 
 private:
   Eigen::Matrix3d K_;
-  double fx_, fy_, cx_, cy_;
   double last_roll_ = std::numeric_limits<double>::max();
   Eigen::Matrix3d
       last_R_; // [unused for now], saved for later stream data flow.
@@ -73,7 +72,8 @@ public:
     bool operator()(const T* const params, T* residuals) const {
       T roll = params[0];
       Eigen::Matrix<T, 3, 3> R =
-          ypr2R(optimizer_->yaw_, optimizer_->pitch_, roll);
+          ypr2R(optimizer_->yaw_, optimizer_->pitch_,
+                roll); // input yaw, pitch should be  ground to camera system
       Eigen::Vector<T, 3> tvec(0, 0, -static_cast<T>(optimizer_->h_));
 
       Eigen::Vector<T, 3> Pc1 = R * (optimizer_->Pw1_.cast<T>() - tvec);

@@ -223,7 +223,7 @@ VP::get_yp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts) {
 Eigen::Vector2f
 VP::get_vp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts) {
   if (!judge_valid(frame_pts)) {
-    fmt::print("Not enough points to estimate vanishing point");
+    fmt::print("Not enough points to estimate vanishing point\n");
     return Eigen::Vector2f::Ones() * -99.f;
   }
 
@@ -235,7 +235,7 @@ VP::get_vp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts) {
 
   compute_vp();
   if (vps_.empty()) {
-    fmt::print("No vanishing point candidates found");
+    fmt::print("No vanishing point candidates found\n");
     return Eigen::Vector2f::Ones() * -99.f;
   }
 
@@ -284,6 +284,5 @@ Eigen::Matrix3f VP::get_R(const std::vector<Eigen::MatrixXf>& frame_pts,
   auto pose = roll_solver.solve_from_two_points(uv1, uv2, pw1, pw2, cam_h,
                                                 static_cast<double>(yp(0)),
                                                 static_cast<double>(yp(1)));
-  auto r = pose.R;
-  return r.cast<float>();
+  return pose.R_c_g.cast<float>();
 }

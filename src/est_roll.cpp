@@ -22,19 +22,21 @@ PoseResult CameraPoseSolver::solve_from_two_points(const Eigen::Vector2d& uv1,
                                                    const Eigen::Vector2d& uv2,
                                                    const Eigen::Vector3d& pw1,
                                                    const Eigen::Vector3d& pw2,
-                                                   double cam_h, double yaw,
-                                                   double pitch) {
+                                                   double cam_h, double yaw_c_g,
+                                                   double pitch_c_g) {
   PoseResult result;
   double roll =
       (last_roll_ == std::numeric_limits<double>::max()) ? 0.0f : last_roll_;
-  ReprojectionErrorOptimizer optimizer(uv1, uv2, pw1, pw2, cam_h, yaw, pitch,
-                                       K_);
+  ReprojectionErrorOptimizer optimizer(uv1, uv2, pw1, pw2, cam_h, yaw_c_g,
+                                       pitch_c_g, K_);
   auto [best_roll, best_reproj_error] = optimizer.optimize();
-  auto est_R = ypr2R(yaw, pitch, best_roll);
-  auto T_b_c = Eigen::Vector3d(0, 0, -cam_h);
+  auto est_R =
+      ypr2R(yaw_c_g, pitch_c_g,
+            best_roll); // input yaw pitch is in ground to camera format
+  auto T_c_g = Eigen::Vector3d(0, 0, -cam_h);
   result.roll = best_roll;
-  result.R = est_R;
-  result.T = T_b_c;
+  result.R_c_g = est_R;
+  result.T_c_g = T_c_g;
   result.reproj_error = best_reproj_error;
   return result;
 }

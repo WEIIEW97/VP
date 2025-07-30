@@ -619,7 +619,7 @@ def main_est_roll():
     
     solver = CameraPoseSolver(K)
     res = solver.solve_from_two_points(
-        uv1, uv2, Pw1, Pw2, cam_h, yaw, pitch
+        uv1, uv2, Pw1, Pw2, cam_h, -yaw, -pitch
     )
     # print(f"Roll: {solver.safe_rad2deg(res['roll']):.2f}°")
     print(f"Roll: {res['roll']:.2f}°")

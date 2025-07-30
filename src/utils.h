@@ -50,6 +50,8 @@ inline Eigen::MatrixXi generate_sample_points(int n, int w, int h) {
 
 template <typename T>
 Eigen::Matrix<T, 3, 3> ypr2R(const T& yaw, const T& pitch, const T& roll) {
+  // note that the input yaw, pitcn,roll should be radians
+  // and should be in ground to camera coordinate system
   T cy = std::cos(yaw), sy = std::sin(yaw);
   T cp = std::cos(pitch), sp = std::sin(pitch);
   T cr = std::cos(roll), sr = std::sin(roll);

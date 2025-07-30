@@ -68,9 +68,6 @@ class CameraPoseSolver:
         Returns:
             Pose dictionary {'roll', 'R', 'T', 'reproj_error'}
         """
-        # Convert to normalized coordinates
-        # p1 = np.array([(uv1[0] - self.cx) / self.fx, (uv1[1] - self.cy) / self.fy, 1])
-        # p2 = np.array([(uv2[0] - self.cx) / self.fx, (uv2[1] - self.cy) / self.fy, 1])
 
         def project(phi: float) -> Tuple[np.ndarray, np.ndarray]:
             """Project 3D points to image plane with given roll angle"""
