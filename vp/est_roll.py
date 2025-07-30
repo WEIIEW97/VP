@@ -75,8 +75,8 @@ class CameraPoseSolver:
             T = np.array([0, 0, -h])
             Pc1 = R @ (Pw1 - T)
             Pc2 = R @ (Pw2 - T)
-            uv1_reproj = (self.K @ Pc1) / Pc1[2]
-            uv2_reproj = (self.K @ Pc2) / Pc2[2]
+            uv1_reproj = (self.K @ Pc1) / (Pc1[2] + 1e-8)
+            uv2_reproj = (self.K @ Pc2) / (Pc2[2] + 1e-8)
             return uv1_reproj[:2], uv2_reproj[:2]
 
         def objective(phi: float) -> np.ndarray:

@@ -17,6 +17,8 @@
 #pragma once
 
 #include <ceres/ceres.h>
+#include <ceres/tiny_solver.h>
+#include <ceres/tiny_solver_autodiff_function.h>
 #include <Eigen/Core>
 #include <fmt/format.h>
 
@@ -64,6 +66,11 @@ public:
     set_initial_guess();
   };
 
+  enum class CeresSolverMode {
+    Auto,
+    Tiny,
+  };
+
   struct CostFunctor {
     explicit CostFunctor(ReprojectionErrorOptimizer* optimizer)
         : optimizer_(optimizer) {}
@@ -79,16 +86,10 @@ public:
       Eigen::Vector<T, 3> Pc1 = R * (optimizer_->Pw1_.cast<T>() - tvec);
       Eigen::Vector<T, 3> Pc2 = R * (optimizer_->Pw2_.cast<T>() - tvec);
 
-      Eigen::Vector<T, 3> uv1_reproj = optimizer_->K_.cast<T>() * Pc1;
-      Eigen::Vector<T, 3> uv2_reproj = optimizer_->K_.cast<T>() * Pc2;
-      uv1_reproj /= uv1_reproj(2);
-      uv2_reproj /= uv2_reproj(2);
-
-      // cache the last reprojection results
-      optimizer_->last_uv1_reproj_ =
-          uv1_reproj.template cast<double>().template head<2>();
-      optimizer_->last_uv2_reproj_ =
-          uv2_reproj.template cast<double>().template head<2>();
+      Eigen::Vector<T, 3> uv1_reproj =
+          (optimizer_->K_.cast<T>() * Pc1) / (Pc1.z() + optimizer_);
+      Eigen::Vector<T, 3> uv2_reproj =
+          (optimizer_->K_.cast<T>() * Pc2) / (Pc1.z() + optimizer_->eps_);
 
       residuals[0] = uv1_reproj(0) - static_cast<T>(optimizer_->uv1_(0));
       residuals[1] = uv1_reproj(1) - static_cast<T>(optimizer_->uv1_(1));
@@ -135,37 +136,82 @@ public:
     fmt::print("{}\n", summary.FullReport());
     fmt::print("Estimated roll: {}\n", init_roll);
 
-    auto reproj_uv1 = last_uv1_reproj_;
-    auto reproj_uv2 = last_uv2_reproj_;
-    auto reproj_error =
-        (reproj_uv1 - uv1_).squaredNorm() + (reproj_uv2 - uv2_).squaredNorm();
+    const double optimized_roll = init_roll;
+    auto reproj_error = reproj_cost(optimized_roll);
     fmt::print("Reprojection error: {}\n", reproj_error);
 
     return {init_roll, reproj_error};
   };
 
-  std::tuple<double, double> optimize() {
+  std::tuple<double, double> optimize_tiny(double init_roll) {
+    CostFunctor cost_functor(this);
+    using AutoDiffFunction =
+        ceres::TinySolverAutoDiffFunction<CostFunctor, 4, 1>;
+    AutoDiffFunction f(cost_functor);
+
+    ceres::TinySolver<AutoDiffFunction> solver;
+    solver.options.max_num_iterations = 50;
+    solver.options.gradient_tolerance = 1e-6;
+    solver.options.parameter_tolerance = 1e-6;
+
+    Eigen::Matrix<double, 1, 1> roll;
+    roll(0) = init_roll;
+    solver.Solve(f, &roll);
+    fmt::print("Estimated roll: {}\n", roll(0));
+
+    const double optimized_roll = roll(0);
+    auto reproj_error = reproj_cost(roll(0));
+    fmt::print("Reprojection error: {}\n", reproj_error);
+
+    return {roll(0), reproj_error};
+  }
+
+  std::tuple<double, double>
+  optimize(CeresSolverMode mode = CeresSolverMode::Auto) {
     double best_reproj_error = std::numeric_limits<double>::max();
     double best_roll = 0.0;
-    for (const auto& init_roll : initial_guess_) {
-      double roll = init_roll;
-      auto [est_roll, reproj_error] = optimize_single(roll);
+
+    auto optimizer = [&](double init_roll) {
+      auto [est_roll, reproj_error] = (mode == CeresSolverMode::Tiny)
+                                          ? optimize_tiny(init_roll)
+                                          : optimize_single(init_roll);
+
       if (reproj_error < best_reproj_error) {
         best_reproj_error = reproj_error;
         best_roll = est_roll;
       }
+    };
+
+    // Test all initial guesses
+    for (double init_roll : initial_guess_) {
+      optimizer(init_roll);
     }
+
     return {best_roll, best_reproj_error};
   }
 
 private:
   Eigen::Vector2d uv1_, uv2_;
   Eigen::Vector3d Pw1_, Pw2_;
+  double eps_ = 1e-8; // for numerical stability
   double h_, yaw_, pitch_;
   Eigen::Matrix3d K_;
   bool is_deg_;
   ceres::Solver::Options options_;
   std::vector<double> initial_guess_;
-  mutable Eigen::Vector2d last_uv1_reproj_;
-  mutable Eigen::Vector2d last_uv2_reproj_;
+  Eigen::Vector2d last_uv1_reproj_;
+  Eigen::Vector2d last_uv2_reproj_;
+
+  double reproj_cost(double roll) {
+    auto R = ypr2R(yaw_, pitch_, roll);
+    auto tvec = Eigen::Vector3d(0, 0, -h_);
+    Eigen::Vector3d Pc1 = R * (Pw1_.cast<double>() - tvec);
+    Eigen::Vector3d Pc2 = R * (Pw2_.cast<double>() - tvec);
+    last_uv1_reproj_ = (K_ * Pc1) / (Pc1.z() + eps_);
+    last_uv2_reproj_ = (K_ * Pc2) / (Pc2.z() + eps_);
+    auto reproj_uv1 = last_uv1_reproj_;
+    auto reproj_uv2 = last_uv2_reproj_;
+    return (reproj_uv1 - uv1_).squaredNorm() +
+           (reproj_uv2 - uv2_).squaredNorm();
+  }
 };
