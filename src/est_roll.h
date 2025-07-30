@@ -87,7 +87,7 @@ public:
       Eigen::Vector<T, 3> Pc2 = R * (optimizer_->Pw2_.cast<T>() - tvec);
 
       Eigen::Vector<T, 3> uv1_reproj =
-          (optimizer_->K_.cast<T>() * Pc1) / (Pc1.z() + optimizer_);
+          (optimizer_->K_.cast<T>() * Pc1) / (Pc1.z() + optimizer_->eps_);
       Eigen::Vector<T, 3> uv2_reproj =
           (optimizer_->K_.cast<T>() * Pc2) / (Pc1.z() + optimizer_->eps_);
 
