@@ -8,6 +8,7 @@ find_package(Eigen3 REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(fmt REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(Ceres REQUIRED)
 
 set(VP_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(ethzasl_apriltag2_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rd/ethzasl_apriltag2/include)
@@ -19,7 +20,8 @@ add_subdirectory(3rd)
 add_executable(
         ${PROJECT_NAME}
         ${sources}
-        main.cpp
+#         main.cpp
+        test/test_est_roll.cpp
 )
 
 target_include_directories(
@@ -31,6 +33,7 @@ target_include_directories(
         ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}
         ${OpenCV_INCLUDE_DIRS}
         ${ethzasl_apriltag2_INCLUDE_DIR}
+        ${CERES_INCLUDE_DIRS}
 )
 
 target_link_libraries(
@@ -40,4 +43,5 @@ target_link_libraries(
         fmt::fmt
         ${OpenCV_LIBS}
         ethzasl_apriltag2
+        ${CERES_LIBRARIES}
 )

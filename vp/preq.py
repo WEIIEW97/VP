@@ -616,6 +616,8 @@ def main_est_roll():
 
     uv1 = get_ground_pts_by_box(box1)
     uv2 = get_ground_pts_by_box(box2)
+
+    print(f"Sample: uv1: {uv1}, uv2: {uv2}")
     
     solver = CameraPoseSolver(K)
     res = solver.solve_from_two_points(

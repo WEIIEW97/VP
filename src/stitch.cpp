@@ -90,5 +90,6 @@ cv::Mat stitch(const std::vector<std::string>& image_paths, float ipm_x_scale,
   }
 
   cv::Mat total_bev = cv::Mat::zeros(packs[0].bev_image.size(), CV_64FC3);
-  
+
+  return total_bev;
 }

@@ -25,8 +25,6 @@ PoseResult CameraPoseSolver::solve_from_two_points(const Eigen::Vector2d& uv1,
                                                    double cam_h, double yaw_c_g,
                                                    double pitch_c_g) {
   PoseResult result;
-  double roll =
-      (last_roll_ == std::numeric_limits<double>::max()) ? 0.0f : last_roll_;
   ReprojectionErrorOptimizer optimizer(uv1, uv2, pw1, pw2, cam_h, yaw_c_g,
                                        pitch_c_g, K_);
   auto [best_roll, best_reproj_error] = optimizer.optimize();

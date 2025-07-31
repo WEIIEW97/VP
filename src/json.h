@@ -82,6 +82,24 @@ inline json retrieve_pack_info_by_frame(const std::vector<json>& frames_struct,
   return result;
 }
 
+inline json retrieve_pack_info_by_id(const json& json_file, int frame_id,
+                                     const std::string& key = "lane") {
+  std::string frame_key = std::to_string(frame_id - 1);
+
+  // Check if the frame_id exists
+  if (!json_file.contains(frame_key)) {
+    throw std::out_of_range("Frame ID " + frame_key + " not found in JSON");
+  }
+
+  // Check if the key exists in the frame's object
+  if (!json_file[frame_key].contains(key)) {
+    throw std::out_of_range("Key '" + key + "' not found in frame " +
+                            frame_key);
+  }
+
+  return json_file[frame_key][key];
+}
+
 inline std::vector<Eigen::MatrixXf>
 json_to_eigen_matrix(const json& json_data) {
   std::vector<Eigen::MatrixXf> m;

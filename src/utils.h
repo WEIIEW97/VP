@@ -24,6 +24,8 @@
 #include <cmath>
 #include <random>
 
+#include <ceres/jet.h>
+
 template <typename T>
 T rad2deg(T rad) {
   return rad / M_PI * 180.f;
@@ -52,9 +54,9 @@ template <typename T>
 Eigen::Matrix<T, 3, 3> ypr2R(const T& yaw, const T& pitch, const T& roll) {
   // note that the input yaw, pitcn,roll should be radians
   // and should be in ground to camera coordinate system
-  T cy = std::cos(yaw), sy = std::sin(yaw);
-  T cp = std::cos(pitch), sp = std::sin(pitch);
-  T cr = std::cos(roll), sr = std::sin(roll);
+  T cy = ceres::cos(yaw), sy = ceres::sin(yaw);
+  T cp = ceres::cos(pitch), sp = ceres::sin(pitch);
+  T cr = ceres::cos(roll), sr = ceres::sin(roll);
 
   Eigen::Matrix<T, 3, 3> R;
   R << cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr, sy * cp,

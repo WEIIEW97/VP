@@ -264,13 +264,14 @@ VP::get_ypr_estimation(const std::vector<Eigen::MatrixXf>& frame_pts,
                        const Eigen::Vector3d& pw1, const Eigen::Vector3d& pw2,
                        double cam_h) {
   auto yp = get_yp_estimation(frame_pts);
-  CameraPoseSolver roll_solver(K_);
+  Eigen::Matrix3d Kd = K_.cast<double>();
+  CameraPoseSolver roll_solver(Kd);
 
   auto pose = roll_solver.solve_from_two_points(uv1, uv2, pw1, pw2, cam_h,
-                                                static_cast<double>(yp(0)),
-                                                static_cast<double>(yp(1)));
+                                                -static_cast<double>(yp(0)),
+                                                -static_cast<double>(yp(1)));
 
-  return Eigen::Vector3f(yp(0), yp(1), static_cast<float>(pose.roll));
+  return Eigen::Vector3f(-yp(0), -yp(1), static_cast<float>(pose.roll));
 }
 
 Eigen::Matrix3f VP::get_R(const std::vector<Eigen::MatrixXf>& frame_pts,
@@ -279,10 +280,11 @@ Eigen::Matrix3f VP::get_R(const std::vector<Eigen::MatrixXf>& frame_pts,
                           const Eigen::Vector3d& pw1,
                           const Eigen::Vector3d& pw2, double cam_h) {
   auto yp = get_yp_estimation(frame_pts);
-  CameraPoseSolver roll_solver(K_);
+  Eigen::Matrix3d Kd = K_.cast<double>();
+  CameraPoseSolver roll_solver(Kd);
 
   auto pose = roll_solver.solve_from_two_points(uv1, uv2, pw1, pw2, cam_h,
-                                                static_cast<double>(yp(0)),
-                                                static_cast<double>(yp(1)));
+                                                -static_cast<double>(yp(0)),
+                                                -static_cast<double>(yp(1)));
   return pose.R_c_g.cast<float>();
 }

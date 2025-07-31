@@ -78,23 +78,32 @@ public:
     template <typename T>
     bool operator()(const T* const params, T* residuals) const {
       T roll = params[0];
-      Eigen::Matrix<T, 3, 3> R =
-          ypr2R(optimizer_->yaw_, optimizer_->pitch_,
-                roll); // input yaw, pitch should be  ground to camera system
-      Eigen::Vector<T, 3> tvec(0, 0, -static_cast<T>(optimizer_->h_));
 
-      Eigen::Vector<T, 3> Pc1 = R * (optimizer_->Pw1_.cast<T>() - tvec);
-      Eigen::Vector<T, 3> Pc2 = R * (optimizer_->Pw2_.cast<T>() - tvec);
+      // Convert fixed angles (yaw_, pitch_) to T for consistency
+      T yaw = T(optimizer_->yaw_);
+      T pitch = T(optimizer_->pitch_);
+      Eigen::Matrix<T, 3, 3> R = ypr2R(yaw, pitch, roll);
 
-      Eigen::Vector<T, 3> uv1_reproj =
-          (optimizer_->K_.cast<T>() * Pc1) / (Pc1.z() + optimizer_->eps_);
-      Eigen::Vector<T, 3> uv2_reproj =
-          (optimizer_->K_.cast<T>() * Pc2) / (Pc1.z() + optimizer_->eps_);
+      // Ensure all vectors use T (critical for autodiff)
+      Eigen::Vector<T, 3> tvec(T(0), T(0), T(-optimizer_->h_));
+      Eigen::Vector<T, 3> Pw1 = optimizer_->Pw1_.template cast<T>();
+      Eigen::Vector<T, 3> Pw2 = optimizer_->Pw2_.template cast<T>();
 
-      residuals[0] = uv1_reproj(0) - static_cast<T>(optimizer_->uv1_(0));
-      residuals[1] = uv1_reproj(1) - static_cast<T>(optimizer_->uv1_(1));
-      residuals[2] = uv2_reproj(0) - static_cast<T>(optimizer_->uv2_(0));
-      residuals[3] = uv2_reproj(1) - static_cast<T>(optimizer_->uv2_(1));
+      Eigen::Vector<T, 3> Pc1 = R * (Pw1 - tvec);
+      Eigen::Vector<T, 3> Pc2 = R * (Pw2 - tvec);
+
+      // Cast K_ to T and handle eps_ as T
+      Eigen::Matrix<T, 3, 3> K = optimizer_->K_.template cast<T>();
+      T eps = T(optimizer_->eps_);
+
+      Eigen::Vector<T, 3> uv1_reproj = (K * Pc1) / (Pc1.z() + eps);
+      Eigen::Vector<T, 3> uv2_reproj = (K * Pc2) / (Pc2.z() + eps);
+
+      // Residuals (uv1_/uv2_ must be castable to T)
+      residuals[0] = uv1_reproj(0) - T(optimizer_->uv1_(0));
+      residuals[1] = uv1_reproj(1) - T(optimizer_->uv1_(1));
+      residuals[2] = uv2_reproj(0) - T(optimizer_->uv2_(0));
+      residuals[3] = uv2_reproj(1) - T(optimizer_->uv2_(1));
       return true;
     }
 
@@ -196,7 +205,6 @@ private:
   double eps_ = 1e-8; // for numerical stability
   double h_, yaw_, pitch_;
   Eigen::Matrix3d K_;
-  bool is_deg_;
   ceres::Solver::Options options_;
   std::vector<double> initial_guess_;
   Eigen::Vector2d last_uv1_reproj_;
@@ -205,12 +213,19 @@ private:
   double reproj_cost(double roll) {
     auto R = ypr2R(yaw_, pitch_, roll);
     auto tvec = Eigen::Vector3d(0, 0, -h_);
-    Eigen::Vector3d Pc1 = R * (Pw1_.cast<double>() - tvec);
-    Eigen::Vector3d Pc2 = R * (Pw2_.cast<double>() - tvec);
-    last_uv1_reproj_ = (K_ * Pc1) / (Pc1.z() + eps_);
-    last_uv2_reproj_ = (K_ * Pc2) / (Pc2.z() + eps_);
-    auto reproj_uv1 = last_uv1_reproj_;
-    auto reproj_uv2 = last_uv2_reproj_;
+
+    Eigen::Vector3d Pc1 = R * (Pw1_ - tvec);
+    Eigen::Vector3d Pc2 = R * (Pw2_ - tvec);
+
+    Eigen::Vector3d uv1_hom = K_ * Pc1;
+    Eigen::Vector3d uv2_hom = K_ * Pc2;
+
+    Eigen::Vector2d reproj_uv1 = uv1_hom.head<2>() / uv1_hom.z();
+    Eigen::Vector2d reproj_uv2 = uv2_hom.head<2>() / uv2_hom.z();
+
+    last_uv1_reproj_ = reproj_uv1;
+    last_uv2_reproj_ = reproj_uv2;
+
     return (reproj_uv1 - uv1_).squaredNorm() +
            (reproj_uv2 - uv2_).squaredNorm();
   }
