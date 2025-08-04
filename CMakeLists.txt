@@ -13,6 +13,10 @@ find_package(Ceres REQUIRED)
 set(VP_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(ethzasl_apriltag2_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rd/ethzasl_apriltag2/include)
 
+set(PROJECT_HOME ${CMAKE_SOURCE_DIR})
+file(TO_CMAKE_PATH "${PROJECT_HOME}" PROJECT_HOME_ESCAPED)
+add_compile_definitions(PROJECT_HOME="${PROJECT_HOME_ESCAPED}")
+
 file(GLOB_RECURSE sources ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 
 add_subdirectory(3rd)

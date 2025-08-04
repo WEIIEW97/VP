@@ -22,11 +22,11 @@
 using namespace std;
 
 int main() {
-  const string info_path = "/home/william/Codes/vp/data/lanes/lane.json";
-  const string img_dir = "/home/william/Codes/vp/data/lanes/samples";
-  const string box_path = "/home/william/Codes/vp/data/lanes/person.json";
-  const string intri_path =
-      "/home/william/Codes/vp/data/lanes/intrinsics_colin.json";
+  std::string home_dir = PROJECT_HOME;
+  const string info_path = home_dir + "/data/lanes/lane.json";
+  const string img_dir = home_dir + "/data/lanes/samples";
+  const string box_path = home_dir + "/data/lanes/person.json";
+  const string intri_path = home_dir + "/data/lanes/intrinsics_colin.json";
 
   auto info = read_json(info_path);
   auto result = retrieve_pack_info_by_id(info, 180, "lane");
@@ -37,7 +37,7 @@ int main() {
   K << 1037.416932, 0, 974.447538, 0, 1038.440160, 564.996364, 0, 0, 1;
   dist_coefs << 2.263742, 5.859805, 0.001165, -0.000197, 0.522284, 2.592719,
       6.896840, 2.312912;
-  
+
   auto vp_detector = VP(K, dist_coefs, 5, CameraModel::pinhole_k6, true);
   auto yp = vp_detector.get_yp_estimation(frame);
   cout << "Estimated yp: " << yp.transpose() << endl;
