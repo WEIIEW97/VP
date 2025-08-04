@@ -137,9 +137,9 @@ def locate_indices(im_names: list):
 
 if __name__ == "__main__":
     video_path = (
-        "/home/william/extdisk/data/lanes/person_3m_5m/20250724_150812_main.h265"
+        "/home/william/extdisk/data/boximu-rgb/dataFromYF/data0731/zhuizi/20250731_135519_main.h265"
     )
-    frames_dir = "/home/william/extdisk/data/lanes/person_3m_5m/frames"
+    frames_dir = "/home/william/extdisk/data/boximu-rgb/dataFromYF/data0731/zhuizi/frames"
     h265_to_frames(video_path, frames_dir, frame_interval=10, warmup=100)
 
     # vis_path1 = "/home/william/extdisk/data/motorEV/19700101_002523/vis"

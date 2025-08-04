@@ -3,6 +3,8 @@ import cv2
 import numpy as np
 import math
 
+from scipy.spatial.transform import Rotation as R
+
 
 @dataclass
 class IPMInfo:
@@ -22,10 +24,25 @@ class PoseGather:
         self.pitch_offset = pitch_offset
 
     def get_pose_imu(self, yaw, pitch, roll):
-        ypr = np.zeros(3)
-        ypr[0] = roll
-        ypr[1] = -yaw
-        ypr[2] = 90 - (pitch - self.pitch_offset)
+        yaw_rad = np.radians(yaw)
+        pitch_rad = np.radians(pitch - self.pitch_offset)  # Apply pitch offset
+        roll_rad = np.radians(roll)
+
+        # Construct rotation matrix (ZXY order)
+        rot_z = R.from_euler("z", yaw_rad).as_matrix()
+        rot_x = R.from_euler("x", pitch_rad).as_matrix()
+        rot_y = R.from_euler("y", roll_rad).as_matrix()
+        R_tb_gtb = rot_z @ rot_x @ rot_y  # ZXY rotation (same as C++)
+
+        # Apply 90° X-axis rotation (conversion to camera frame)
+        R_cnvp_gtb = R.from_euler("x", np.pi / 2).as_matrix()
+
+        # Final rotation matrix (transposed for passive rotation)
+        R_c_g = R_cnvp_gtb @ R_tb_gtb.T
+
+        # Convert back to YPR angles (degrees)
+        ypr = R.from_matrix(R_c_g).as_euler("zyx", degrees=True)  # [roll, yaw, pitch]
+
         return ypr
 
 
@@ -104,7 +121,7 @@ class IPM:
             self.K_dst = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(
                 K_src, dist[:4], img_size, np.eye(3)
             )
-        
+
         if self.t_c_b.shape == (3,):
             self.t_c_b = self.t_c_b.reshape((3, 1))
 

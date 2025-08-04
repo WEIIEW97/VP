@@ -15,8 +15,8 @@ tests/
 .vs
 
 
-cmake-build-release
-cmake-build-debug
+cmake-build-*
 out
 build
 dist
+onnx

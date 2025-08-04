@@ -565,24 +565,24 @@ def main():
 
 
 def main_est_roll():
-    info_path = "/home/william/Codes/vp/data/lanes/lane.json"
-    img_dir = "/home/william/Codes/vp/data/lanes/samples"
-    box_path = "/home/william/Codes/vp/data/lanes/person.json"
-    intri_path = "/home/william/Codes/vp/data/lanes/intrinsics_colin.json"
+    info_path = "/home/william/extdisk/data/boximu-rgb/dataFromYF/data0731/zhuizi/lane_results.json"
+    # img_dir = "/home/william/Codes/vp/data/lanes/samples"
+    # box_path = "/home/william/Codes/vp/data/lanes/person.json"
+    intri_path = "/home/william/extdisk/data/boximu-rgb/dataFromYF/data0731/intrinsics_colin.json"
 
     intrinsics = load_json(intri_path)
     K = np.array(intrinsics["cam_intrinsic"]).reshape((3, 3))
     dist_coef = np.array(intrinsics["cam_distcoeffs"])[:8]
 
-    boxes = load_json(box_path)
+    # boxes = load_json(box_path)
 
     total_info = load_json(info_path)
-    cam_h = 0.76
+    cam_h = 0.7506643192063565
 
-    im_names = sorted(
-        [f for f in os.listdir(img_dir) if os.path.isfile(os.path.join(img_dir, f))]
-    )
-    sample_ids = [180, 1970]
+    # im_names = sorted(
+    #     [f for f in os.listdir(img_dir) if os.path.isfile(os.path.join(img_dir, f))]
+    # )
+    sample_ids = [100]
     frame_pack_raw = retrive_pack_info_by_id(total_info, sample_ids[0])
     vp = VP(K, dist_coef)
     frame_pack = vp.undistort_points(frame_pack_raw)
@@ -596,26 +596,28 @@ def main_est_roll():
     else:
         print(f"Sample: unable to collect sufficient number of lane points")
 
-    vp2 = VP(K, dist_coef)
-    frame_pack_raw2 = retrive_pack_info_by_id(total_info, sample_ids[1])
-    frame_pack2 = vp2.undistort_points(frame_pack_raw2)
-    vp2.line_fit(frame_pack2)
-    if vp2.line_fit_flag:
-        vp2.compute_vp()
-        vanishing_point2 = vp2.filter_candidates("close")
-        yaw2, pitch2 = vp2.estimate_yp(vanishing_point2)
-        print(f"Sample: Yaw: {yaw2:.2f}, Pitch: {pitch2:.2f}")
-    else:
-        print(f"Sample: unable to collect sufficient number of lane points")
+    # vp2 = VP(K, dist_coef)
+    # frame_pack_raw2 = retrive_pack_info_by_id(total_info, sample_ids[1])
+    # frame_pack2 = vp2.undistort_points(frame_pack_raw2)
+    # vp2.line_fit(frame_pack2)
+    # if vp2.line_fit_flag:
+    #     vp2.compute_vp()
+    #     vanishing_point2 = vp2.filter_candidates("close")
+    #     yaw2, pitch2 = vp2.estimate_yp(vanishing_point2)
+    #     print(f"Sample: Yaw: {yaw2:.2f}, Pitch: {pitch2:.2f}")
+    # else:
+    #     print(f"Sample: unable to collect sufficient number of lane points")
 
     Pw1 = np.array([0, 3, 0])
     Pw2 = np.array([0, 5, 0])
 
-    box1 = retrive_pack_info_by_id(boxes, sample_ids[0], key="person")
-    box2 = retrive_pack_info_by_id(boxes, sample_ids[1], key="person")
+    # box1 = retrive_pack_info_by_id(boxes, sample_ids[0], key="person")
+    # box2 = retrive_pack_info_by_id(boxes, sample_ids[1], key="person")
 
-    uv1 = get_ground_pts_by_box(box1)
-    uv2 = get_ground_pts_by_box(box2)
+    # uv1 = get_ground_pts_by_box(box1)
+    # uv2 = get_ground_pts_by_box(box2)
+    uv1 = np.array([979, 836])
+    uv2 = np.array([982, 736])
 
     print(f"Sample: uv1: {uv1}, uv2: {uv2}")
     
@@ -636,7 +638,7 @@ def main_est_roll():
     ipm_info.y_scale = 200
 
 
-    img_rgb = cv2.imread("/home/william/Codes/vp/data/lanes/samples/frame_000180.jpg")
+    img_rgb = cv2.imread("/home/william/extdisk/data/boximu-rgb/dataFromYF/data0731/zhuizi/frames/frame_000100.jpg")
     ipm_img = ipm.GetIPMImage(img_rgb, ipm_info, yaw_c_g=ypr[0], pitch_c_g=ypr[1], roll_c_g=ypr[2])
     plt.figure()
     plt.imshow(ipm_img)
