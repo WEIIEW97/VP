@@ -20,6 +20,7 @@
 #include <ceres/tiny_solver.h>
 #include <ceres/tiny_solver_autodiff_function.h>
 #include <Eigen/Core>
+#include <numbers>
 // #include <fmt/format.h>
 
 #include <limits>
@@ -121,7 +122,7 @@ public:
     options_.num_threads = n_threads;
   }
 
-  void set_initial_guess(double lb = -M_PI / 6, double ub = M_PI / 6,
+  void set_initial_guess(double lb = -std::numbers::pi / 6, double ub = std::numbers::pi / 6,
                          int n = 7) {
     initial_guess_.clear();
     initial_guess_.resize(n);

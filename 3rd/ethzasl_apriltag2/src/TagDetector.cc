@@ -294,8 +294,8 @@ namespace AprilTags {
       float theta = fimTheta.get((int) xyw.x, (int) xyw.y);
       float mag = fimMag.get((int) xyw.x, (int) xyw.y);
 
-      // err *should* be +M_PI/2 for the correct winding, but if we
-      // got the wrong winding, it'll be around -M_PI/2.
+      // err *should* be +std::numbers::pi/2 for the correct winding, but if we
+      // got the wrong winding, it'll be around -std::numbers::pi/2.
       float err = MathUtil::mod2pi(theta - seg.getTheta());
 
       if (err < 0)
@@ -305,7 +305,7 @@ namespace AprilTags {
     }
 
     if (flip > noflip) {
-      float temp = seg.getTheta() + (float)M_PI;
+      float temp = seg.getTheta() + (float)std::numbers::pi;
       seg.setTheta(temp);
     }
 
@@ -491,8 +491,8 @@ namespace AprilTags {
       thisTagDetection.homography = quad.homography.getH();
       thisTagDetection.hxy = quad.homography.getCXY();
 
-      float c = std::cos(thisTagDetection.rotation*(float)M_PI/2);
-      float s = std::sin(thisTagDetection.rotation*(float)M_PI/2);
+      float c = std::cos(thisTagDetection.rotation*(float)std::numbers::pi/2);
+      float s = std::sin(thisTagDetection.rotation*(float)std::numbers::pi/2);
       Eigen::Matrix3d R;
       R.setZero();
       R(0,0) = R(1,1) = c;

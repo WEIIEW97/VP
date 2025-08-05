@@ -30,6 +30,7 @@ add_executable(
 
 if(MSVC)
         target_compile_definitions(${PROJECT_NAME} PRIVATE _USE_MATH_DEFINES)
+        set_source_files_properties(${sources} PROPERTIES COMPILE_FLAGS "/bigobj")
 endif()
 
 target_include_directories(

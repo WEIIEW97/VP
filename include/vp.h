@@ -16,10 +16,6 @@
 
 #pragma once
 
-#ifdef _MSC_VER
-#define _USE_MATH_DEFINES
-#endif
-
 #include <Eigen/Dense>
 #include <cmath>
 #include <iostream>

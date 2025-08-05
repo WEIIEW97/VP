@@ -189,8 +189,8 @@ Eigen::Vector2f VP::estimate_yp(const Eigen::Vector2f& vp) {
     x = vp_smooth(0);
     y = vp_smooth(1);
   }
-  auto yaw = std::atan((x - cx_) / fx_) * 180.f / M_PI;
-  auto pitch = std::atan((cy_ - y) / fy_) * 180.f / M_PI;
+  auto yaw = std::atan((x - cx_) / fx_) * 180.f / std::numbers::pi;
+  auto pitch = std::atan((cy_ - y) / fy_) * 180.f / std::numbers::pi;
   Eigen::Vector2f yp(yaw, pitch);
   return yp;
 }

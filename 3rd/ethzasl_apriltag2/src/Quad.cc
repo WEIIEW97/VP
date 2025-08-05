@@ -87,8 +87,8 @@ void Quad::search(const FloatImage& fImage, std::vector<Segment*>& path,
 	float t2 = std::atan2(p[3].second-p[2].second, p[3].first-p[2].first);
 	float t3 = std::atan2(p[0].second-p[3].second, p[0].first-p[3].first);
 
-	//	double ttheta = fmod(t1-t0, 2*M_PI) + fmod(t2-t1, 2*M_PI) +
-	//	  fmod(t3-t2, 2*M_PI) + fmod(t0-t3, 2*M_PI);
+	//	double ttheta = fmod(t1-t0, 2*std::numbers::pi) + fmod(t2-t1, 2*std::numbers::pi) +
+	//	  fmod(t3-t2, 2*std::numbers::pi) + fmod(t0-t3, 2*std::numbers::pi);
 	float ttheta = MathUtil::mod2pi(t1-t0) + MathUtil::mod2pi(t2-t1) +
 	  MathUtil::mod2pi(t3-t2) + MathUtil::mod2pi(t0-t3);
 	// cout << "ttheta=" << ttheta << endl;

@@ -157,8 +157,8 @@ double IPM::EstimateImuPitchOffset(const cv::Point2d& marker_uv,
     cv::fisheye::undistortPoints(uv_src, uv_dst, K_dst_,
                                  cv::Mat(dist_).rowRange(0, 4), cv::Mat(),
                                  K_dst_);
-  double beta = atan2(uv_dst.at(0).y - K_dst_(1, 2), K_dst_(1, 1)) * 180 / M_PI;
-  double alpha = atan2(marker_xy.y, h_g_c) * 180 / M_PI;
+  double beta = atan2(uv_dst.at(0).y - K_dst_(1, 2), K_dst_(1, 1)) * 180 / std::numbers::pi;
+  double alpha = atan2(marker_xy.y, h_g_c) * 180 / std::numbers::pi;
   double pitch_measurement = 180 - alpha - beta;
   double pitch_imu_est = roll_c_g;
   auto pitch_offset = pitch_measurement - pitch_imu_est;
@@ -264,13 +264,13 @@ cv::Vec3d IPM::R2YPR(const cv::Matx33d& R) {
   ypr(1) = p;
   ypr(2) = r;
 
-  return ypr / M_PI * 180.0;
+  return ypr / std::numbers::pi * 180.0;
 }
 
 cv::Matx33d IPM::YPR2R(const cv::Vec3d& ypr) {
-  auto y = ypr(0) / 180.0 * M_PI;
-  auto p = ypr(1) / 180.0 * M_PI;
-  auto r = ypr(2) / 180.0 * M_PI;
+  auto y = ypr(0) / 180.0 * std::numbers::pi;
+  auto p = ypr(1) / 180.0 * std::numbers::pi;
+  auto r = ypr(2) / 180.0 * std::numbers::pi;
 
   cv::Matx33d Rz(cos(y), -sin(y), 0, sin(y), cos(y), 0, 0, 0, 1);
 

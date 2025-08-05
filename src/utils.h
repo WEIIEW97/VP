@@ -23,17 +23,18 @@
 #include <Eigen/Dense>
 #include <cmath>
 #include <random>
+#include <numbers>
 
 #include <ceres/jet.h>
 
 template <typename T>
 T rad2deg(T rad) {
-  return rad / M_PI * 180.f;
+  return rad / std::numbers::pi * 180.f;
 }
 
 template <typename T>
 T deg2rag(T deg) {
-  return deg / 180.f * M_PI;
+  return deg / 180.f * std::numbers::pi;
 }
 
 inline Eigen::MatrixXi generate_sample_points(int n, int w, int h) {
