@@ -632,6 +632,9 @@ def main_est_roll():
     ypr = pose_g.get_pose_imu(yaw, pitch, res["roll"])
     print(ypr)
 
+    ypr2 = pose_g.get_pose_imu(-0.673148128638249, -0.03523089354278049, -0.3921596723052975)
+    print(ypr2)
+
     ipm = IPM(K, dist_coef, (1920, 1080), yaw_c_b=ypr[0], pitch_c_b=ypr[1], roll_c_b=ypr[2], tx_b_c=0, ty_b_c=0, tz_b_c=cam_h)
     ipm_info = IPMInfo()
     ipm_info.x_scale = 200
@@ -640,11 +643,26 @@ def main_est_roll():
 
     img_rgb = cv2.imread("/home/william/extdisk/data/boximu-rgb/dataFromYF/data0731/zhuizi/frames/frame_000100.jpg")
     ipm_img = ipm.GetIPMImage(img_rgb, ipm_info, yaw_c_g=ypr[0], pitch_c_g=ypr[1], roll_c_g=ypr[2])
-    plt.figure()
-    plt.imshow(ipm_img)
-    plt.axis("off")
+    ipm_img2 = ipm.GetIPMImage(img_rgb, ipm_info, yaw_c_g=ypr2[0], pitch_c_g=ypr2[1], roll_c_g=ypr2[2])
+    ipm_img3 = ipm.GetIPMImage(img_rgb, ipm_info, yaw_c_g=0.391746, pitch_c_g=-0.673148, roll_c_g=90.0352)
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12, 6))  # 1 row, 2 columns
+
+    ax1.imshow(ipm_img)
+    ax1.set_title("IPM Image:Est pose")
+    ax1.axis("off")
+
+    ax2.imshow(ipm_img2)
+    ax2.set_title("IPM Image:Extrinsic")
+    ax2.axis("off")
+
+    ax3.imshow(ipm_img3)
+    ax3.set_title("IPM Image:c++")
+    ax3.axis("off")
+
+
     plt.tight_layout()
-    plt.show()
+    plt.show() 
+
 
 
     

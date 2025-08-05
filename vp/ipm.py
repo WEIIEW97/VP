@@ -40,9 +40,8 @@ class PoseGather:
         # Final rotation matrix (transposed for passive rotation)
         R_c_g = R_cnvp_gtb @ R_tb_gtb.T
 
-        # Convert back to YPR angles (degrees)
-        ypr = R.from_matrix(R_c_g).as_euler("zyx", degrees=True)  # [roll, yaw, pitch]
-
+        # ypr = R.from_matrix(R_c_g).as_euler("zyx", degrees=True)  # [roll, yaw, pitch]
+        ypr = r2ypr(R_c_g)
         return ypr
 
 
