@@ -28,6 +28,10 @@ add_executable(
         test/test_est_roll.cpp
 )
 
+if(MSVC)
+        target_compile_definitions(${PROJECT_NAME} PRIVATE _USE_MATH_DEFINES)
+endif()
+
 target_include_directories(
         ${PROJECT_NAME}
         PRIVATE

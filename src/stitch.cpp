@@ -17,8 +17,8 @@
 #include "stitch.h"
 
 #include "ipm.h"
+#include "macros.h"
 #include <opencv2/calib3d.hpp>
-#include <fmt/format.h>
 
 cv::Mat get_homogeneous_transform(const cv::Mat& rvec, const cv::Mat& tvec) {
   cv::Matx33d R;
@@ -44,7 +44,7 @@ BEVPack process_single_bev(cv::Mat& im_rgb, Aprilgrid& detector,
   cv::Mat K_mat = cv::Mat(K);
   auto ret = detector.estimatePose(corners, K_mat, dist, 1);
   if (ret.rvec.empty() || ret.tvec.empty()) {
-    fmt::print("Pose estimation failed, returning empty BEVPack.\n");
+    VP_LOG("Pose estimation failed, returning empty BEVPack.\n");
     return bev_pack; // Return empty BEVPack if pose estimation fails
   }
 
@@ -80,7 +80,7 @@ cv::Mat stitch(const std::vector<std::string>& image_paths, float ipm_x_scale,
   for (const auto& path : image_paths) {
     cv::Mat image = cv::imread(path, cv::IMREAD_ANYCOLOR);
     if (image.empty()) {
-      fmt::print("Failed to read image: {}\n", path);
+      VP_LOG("Failed to read image: {}\n", path);
       continue;
     }
     images.push_back(image);

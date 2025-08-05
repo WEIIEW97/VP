@@ -20,11 +20,12 @@
 #include <ceres/tiny_solver.h>
 #include <ceres/tiny_solver_autodiff_function.h>
 #include <Eigen/Core>
-#include <fmt/format.h>
+// #include <fmt/format.h>
 
 #include <limits>
 
 #include "utils.h"
+#include "macros.h"
 
 struct PoseResult {
   double roll;
@@ -142,12 +143,12 @@ public:
       throw std::runtime_error("Optimization failed to converge");
     }
 
-    fmt::print("{}\n", summary.FullReport());
-    fmt::print("Estimated roll: {}\n", init_roll);
+    VP_LOG("{}\n", summary.FullReport());
+    VP_LOG("Estimated roll: {}\n", init_roll);
 
     const double optimized_roll = init_roll;
     auto reproj_error = reproj_cost(optimized_roll);
-    fmt::print("Reprojection error: {}\n", reproj_error);
+    VP_LOG("Reprojection error: {}\n", reproj_error);
 
     return {init_roll, reproj_error};
   };
@@ -166,11 +167,11 @@ public:
     Eigen::Matrix<double, 1, 1> roll;
     roll(0) = init_roll;
     solver.Solve(f, &roll);
-    fmt::print("Estimated roll: {}\n", roll(0));
+    VP_LOG("Estimated roll: {}\n", roll(0));
 
     const double optimized_roll = roll(0);
     auto reproj_error = reproj_cost(roll(0));
-    fmt::print("Reprojection error: {}\n", reproj_error);
+    VP_LOG("Reprojection error: {}\n", reproj_error);
 
     return {roll(0), reproj_error};
   }
