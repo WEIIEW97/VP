@@ -577,7 +577,7 @@ def main_est_roll():
     # boxes = load_json(box_path)
 
     total_info = load_json(info_path)
-    cam_h = 0.7506643192063565
+    cam_h = 0.7438302055127431
 
     # im_names = sorted(
     #     [f for f in os.listdir(img_dir) if os.path.isfile(os.path.join(img_dir, f))]

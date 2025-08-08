@@ -270,7 +270,7 @@ VP::get_ypr_estimation(const std::vector<Eigen::MatrixXf>& frame_pts,
                                                 -static_cast<double>(yp(0)),
                                                 -static_cast<double>(yp(1)));
 
-  return Eigen::Vector3f(-yp(0), -yp(1), static_cast<float>(pose.roll));
+  return Eigen::Vector3f(yp(0), yp(1), static_cast<float>(pose.roll));
 }
 
 Eigen::Matrix3f VP::get_R(const std::vector<Eigen::MatrixXf>& frame_pts,

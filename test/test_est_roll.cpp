@@ -23,13 +23,15 @@ using namespace std;
 
 int main() {
   std::string home_dir = PROJECT_HOME;
-  const string info_path = home_dir + "/data/lanes/lane.json";
-  const string img_dir = home_dir + "/data/lanes/samples";
-  const string box_path = home_dir + "/data/lanes/person.json";
-  const string intri_path = home_dir + "/data/lanes/intrinsics_colin.json";
+//  const string info_path = home_dir + "/data/lanes/lane.json";
+  const string info_path = "/home/william/extdisk/data/boximu-rgb/dataFromYF/data0731/zhuizi/lane_results.json";
+//  const string img_dir = home_dir + "/data/lanes/samples";
+//  const string box_path = home_dir + "/data/lanes/person.json";
+//  const string intri_path = home_dir + "/data/lanes/intrinsics_colin.json";
+  const string intri_path = "/home/william/extdisk/data/boximu-rgb/dataFromYF/data0731/intrinsics_colin.json";
 
   auto info = read_json(info_path);
-  auto result = retrieve_pack_info_by_id(info, 180, "lane");
+  auto result = retrieve_pack_info_by_id(info, 100, "lane");
   auto frame = json_to_eigen_matrix(result);
 
   Eigen::Matrix3f K;
@@ -42,12 +44,13 @@ int main() {
   auto yp = vp_detector.get_yp_estimation(frame);
   cout << "Estimated yp: " << yp.transpose() << endl;
 
-  Eigen::Vector2d uv1(981.60622304, 819.70624924);
-  Eigen::Vector2d uv2(987.69220956, 732.07843781);
-  double cam_h = 0.76;
+  Eigen::Vector2d uv1(979, 836);
+  Eigen::Vector2d uv2(982, 736);
+  double cam_h = 0.7438302055127431;
   Eigen::Vector3d pw1(0, 3, 0);
   Eigen::Vector3d pw2(0, 5, 0);
   auto ypr = vp_detector.get_ypr_estimation(frame, uv1, uv2, pw1, pw2, cam_h);
   cout << "Estimated YPR: " << ypr.transpose() << endl;
+  cout << "Estimated roll angles: " << ypr(2) << endl;
   return 0;
 }

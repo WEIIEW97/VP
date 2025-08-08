@@ -27,7 +27,8 @@ PoseResult CameraPoseSolver::solve_from_two_points(const Eigen::Vector2d& uv1,
   PoseResult result;
   ReprojectionErrorOptimizer optimizer(uv1, uv2, pw1, pw2, cam_h, yaw_c_g,
                                        pitch_c_g, K_);
-  auto [best_roll, best_reproj_error] = optimizer.optimize();
+  auto [best_roll, best_reproj_error] =
+      optimizer.optimize(ReprojectionErrorOptimizer::CeresSolverMode::Tiny);
   auto est_R =
       ypr2R(yaw_c_g, pitch_c_g,
             best_roll); // input yaw pitch is in ground to camera format

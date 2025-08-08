@@ -10,6 +10,7 @@ class CameraPoseSolver:
     Optimized camera pose solver supporting both single-point and two-point modes
     with automatic switching between them.
     """
+
     def __init__(self, K: np.ndarray):
         """
         Initialize camera intrinsic parameters.
@@ -25,7 +26,7 @@ class CameraPoseSolver:
         self.last_T = None
 
     @staticmethod
-    def rotation_matrix(yaw: float, pitch: float, roll: float) -> np.ndarray:
+    def ypr2R(yaw: float, pitch: float, roll: float) -> np.ndarray:
         """Calculate rotation matrix from yaw, pitch, and roll angles."""
         # Convert inputs to numpy arrays and flatten
         yaw = np.asarray(yaw).ravel()[0]
@@ -71,7 +72,7 @@ class CameraPoseSolver:
 
         def project(phi: float) -> Tuple[np.ndarray, np.ndarray]:
             """Project 3D points to image plane with given roll angle"""
-            R = self.rotation_matrix(yaw, pitch, phi)
+            R = self.ypr2R(yaw, pitch, phi)
             T = np.array([0, 0, -h])
             Pc1 = R @ (Pw1 - T)
             Pc2 = R @ (Pw2 - T)
@@ -102,7 +103,7 @@ class CameraPoseSolver:
             raise RuntimeError("Two-point optimization failed")
 
         roll = best_solution.x[0]
-        R = self.rotation_matrix(yaw, pitch, roll)
+        R = self.ypr2R(yaw, pitch, roll)
         T = np.array([0, 0, -h])
 
         # Update cache
@@ -115,6 +116,83 @@ class CameraPoseSolver:
             "R": R,
             "T": T,
             "reproj_error": np.mean(np.abs(objective(roll))),
+        }
+
+    def solve_from_two_points2(
+        self,
+        uv1: np.ndarray,
+        uv2: np.ndarray,
+        Pw1: np.ndarray,
+        Pw2: np.ndarray,
+        h: float,
+        yaw: float,
+        pitch: float,
+    ) -> Dict:
+        """Two-point pose estimation with normalized coordinates and robust optimization."""
+        # Normalize image coordinates (critical for numerical stability)
+
+        def project(phi: float) -> Tuple[np.ndarray, np.ndarray]:
+            R = self.ypr2R(yaw, pitch, phi)
+            T = np.array([0, 0, -h])
+            Pc1 = R @ (Pw1 - T)
+            Pc2 = R @ (Pw2 - T)
+
+            # Project to normalized image plane (z=1)
+            uv1_norm_reproj = Pc1[:2] / Pc1[2]
+            uv2_norm_reproj = Pc2[:2] / Pc2[2]
+
+            # Convert back to pixel coordinates for error calculation
+            uv1_reproj = self.K[:2, :2] @ uv1_norm_reproj + self.K[:2, 2]
+            uv2_reproj = self.K[:2, :2] @ uv2_norm_reproj + self.K[:2, 2]
+
+            return uv1_reproj, uv2_reproj
+
+        def objective(phi: float) -> np.ndarray:
+            uv1_reproj, uv2_reproj = project(phi)
+            # Calculate error in normalized coordinates
+            error1 = (uv1_reproj - uv1) / np.array([self.K[0, 0], self.K[1, 1]])
+            error2 = (uv2_reproj - uv2) / np.array([self.K[0, 0], self.K[1, 1]])
+            return np.concatenate([error1, error2])
+
+        # Initialization with adaptive range
+        init_guesses = np.linspace(-np.pi / 2, np.pi / 2, 15)
+        if self.last_roll is not None:
+            init_guesses = np.insert(init_guesses, 0, self.last_roll)
+
+        best_solution = None
+        min_error = float("inf")
+
+        for guess in init_guesses:
+            res = least_squares(
+                objective,
+                guess,
+                method="trf",
+                loss="huber",
+                ftol=1e-6,
+                x_scale="jac",  # Auto-scaling based on Jacobian
+            )
+            if res.cost < min_error:
+                min_error = res.cost
+                best_solution = res
+
+        if best_solution is None:
+            raise RuntimeError("Optimization failed")
+
+        roll = best_solution.x[0]
+        R = self.ypr2R(yaw, pitch, roll)
+        T = np.array([0, 0, -h])
+
+        # Calculate final reprojection error in pixels
+        uv1_final, uv2_final = project(roll)
+        pixel_error = np.mean(
+            np.abs(np.concatenate([uv1_final - uv1, uv2_final - uv2]))
+        )
+
+        return {
+            "roll": roll,
+            "R": R,
+            "T": T,
+            "reproj_error": pixel_error,
         }
 
     @staticmethod
@@ -210,7 +288,7 @@ if __name__ == "__main__":
     Pw1 = np.array([0, 5, 0])
     Pw2 = np.array([0, 3, 0])
     # Compute ground truth projections
-    R_gt = solver.rotation_matrix(yaw, pitch, roll_gt)
+    R_gt = solver.ypr2R(yaw, pitch, roll_gt)
     T_gt = np.array([0, 0, -h])  # Camera is at [0,0,h] looking down
     Pc1 = R_gt @ (Pw1 - T_gt)
     Pc2 = R_gt @ (Pw2 - T_gt)
@@ -223,6 +301,8 @@ if __name__ == "__main__":
 
     print("=== Two-point solution ===")
     result = solver.solve_from_two_points(uv1[:2], uv2[:2], Pw1, Pw2, h, yaw, pitch)
-    print(f"Roll: {solver.safe_rad2deg(result['roll']):.2f}° (GT: {np.rad2deg(roll_gt):.2f}°)")
+    print(
+        f"Roll: {solver.safe_rad2deg(result['roll']):.2f}° (GT: {np.rad2deg(roll_gt):.2f}°)"
+    )
     print(f"Reprojection error: {result['reproj_error']:.2f} pixels")
     # solver.visualize(result, [uv1[:2], uv2[:2]], [Pw1, Pw2])
