@@ -16,12 +16,16 @@
 
 #include "recalib.h"
 
-void ChessboardCalibrator::i420_to_rgb(const std::string& yuv_path, int h,
-                                       int w) {
+#include <fstream>
+#include <iostream>
+#include <vector>
+
+cv::Mat ChessboardCalibrator::i420_to_rgb(const std::string& yuv_path, int h,
+                                          int w) {
   std::ifstream file(yuv_path, std::ios::binary);
   if (!file) {
     std::cerr << "Error: Cannot open YUV file at: " << yuv_path << std::endl;
-    return;
+    return cv::Mat();
   }
 
   std::vector<uint8_t> yuv_data((std::istreambuf_iterator<char>(file)),
@@ -29,19 +33,20 @@ void ChessboardCalibrator::i420_to_rgb(const std::string& yuv_path, int h,
   if (yuv_data.size() != static_cast<size_t>(w * h * 3 / 2)) {
     std::cerr << "Error: File size does not match expected YUV420 (I420) size."
               << std::endl;
-    return;
+    return cv::Mat();
   }
 
+  cv::Mat rgb;
   cv::Mat I420(h * 3 / 2, w, CV_8UC1, yuv_data.data());
+  cv::cvtColor(I420, rgb, cv::COLOR_YUV2RGB_I420);
+  rgb_ = rgb.clone();
 
-  cv::cvtColor(I420, rgb_, cv::COLOR_YUV2RGB_I420);
+  return rgb;
 }
 
 ChessboardCalibrator::CalibResult ChessboardCalibrator::chessboard_detect(
-    const cv::Mat& K, const cv::Mat& dist_coef, const cv::Size pattern_size,
-    float square_size) {
+    const cv::Mat& rgb, const cv::Size& pattern_size, float square_size) {
   ChessboardCalibrator::CalibResult res;
-  rgb_verbose_ = rgb_.clone();
 
   cv::Mat gray;
   cv::cvtColor(rgb_, gray, cv::COLOR_RGB2GRAY);
@@ -66,7 +71,8 @@ ChessboardCalibrator::CalibResult ChessboardCalibrator::chessboard_detect(
   cv::cornerSubPix(gray, corners, cv::Size(11, 11), cv::Size(-1, -1), criteria);
 
   cv::Mat rvec, tvec;
-  bool pnp_success = cv::solvePnP(objp, corners, K, dist_coef, rvec, tvec);
+  bool pnp_success =
+      cv::solvePnP(objp, corners, K_, cv::Mat(dist_), rvec, tvec);
   if (!pnp_success) {
     std::cerr << "SolvePnP failed." << std::endl;
   }
@@ -85,4 +91,26 @@ ChessboardCalibrator::CalibResult ChessboardCalibrator::chessboard_detect(
   res.angle_degrees = cv::Vec3d(pitch, yaw, roll);
   res.success = true;
   return res;
+}
+
+cv::Mat ChessboardCalibrator::get_warped_image(
+    const ChessboardCalibrator::CalibResult& calib_res) const {
+  auto yaw = calib_res.angle_degrees[1];
+  auto h = rgb_.rows;
+  auto w = rgb_.cols;
+  auto opticial_center = cv::Point2f(K_.at<double>(0, 2), K_.at<double>(1, 2));
+
+  auto rmat = cv::getRotationMatrix2D(opticial_center, yaw, 1);
+  cv::Mat warped;
+  cv::warpAffine(rgb_, warped, rmat, rgb_.size());
+  return warped;
+}
+
+cv::Mat ChessboardCalibrator::get_rgb_image() const { return rgb_; }
+
+ChessboardCalibrator::CalibResult
+ChessboardCalibrator::detect(const std::string& yuv_path, int h, int w,
+                             const cv::Size& pattern_size, float square_size) {
+  auto rgb = i420_to_rgb(yuv_path, h, w);
+  return chessboard_detect(rgb, pattern_size, square_size);
 }

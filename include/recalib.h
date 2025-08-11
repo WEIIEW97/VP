@@ -21,27 +21,35 @@
 #include <opencv2/highgui.hpp>
 
 #include <string>
-#include <vector>
-#include <fstream>
-#include <iostream>
 
 class ChessboardCalibrator {
 public:
-  ChessboardCalibrator();
+  ChessboardCalibrator(const cv::Matx33d& K, const cv::Vec<double, 8>& dist)
+      : K_(K), dist_(dist) {}
   ~ChessboardCalibrator() = default;
 
   struct CalibResult {
     bool success = false;
     cv::Vec3d angle_degrees;
-    cv::Mat verbose_img;
+    std::vector<cv::Point2f> corners;
+    cv::Size pattern_size;
   };
 
-  void i420_to_rgb(const std::string& yuv_path, int h, int w);
-  CalibResult chessboard_detect(const cv::Mat& K, const cv::Mat& dist_coef,
-                                const cv::Size pattern_size = cv::Size(8, 5),
-                                float square_size = 0.025);
+  CalibResult detect(const std::string& yuv_path, int h, int w,
+                     const cv::Size& pattern_size = cv::Size(8, 5),
+                     float square_size = 0.025);
+
+  cv::Mat get_warped_image(const CalibResult& calib_res) const;
+  cv::Mat get_rgb_image() const;
+
+private:
+  cv::Mat i420_to_rgb(const std::string& yuv_path, int h, int w);
+  CalibResult chessboard_detect(const cv::Mat& rgb,
+                                const cv::Size& pattern_size,
+                                float square_size);
 
 private:
   cv::Mat rgb_;
-  cv::Mat rgb_verbose_;
+  cv::Mat K_;
+  cv::Vec<double, 8> dist_;
 };

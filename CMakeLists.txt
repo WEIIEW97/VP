@@ -54,3 +54,22 @@ target_link_libraries(
         ethzasl_apriltag2
         ${CERES_LIBRARIES}
 )
+
+add_executable(
+        recalib_test
+        src/recalib.cpp
+        test/test_recalib.cpp
+)
+
+target_link_libraries(
+        recalib_test
+        PRIVATE
+        ${OpenCV_LIBS}
+        )
+
+target_include_directories(
+        recalib_test
+        PRIVATE
+        ${OpenCV_INCLUDE_DIRS}
+        ${VP_INCLUDE_DIR}
+)
