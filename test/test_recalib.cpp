@@ -19,7 +19,7 @@
 #include <iostream>
 
 int main() {
-  std::string yuv_path = "/home/william/Codes/vp/data/recalib/calib.yuv";
+  std::string yuv_path = std::string(PROJECT_HOME) + "/recalib/calib.yuv";
   cv::Matx33d K(1057.860222, 0, 977.840981, 0, 1059.252092, 572.529502, 0, 0,
                 1);
   cv::Vec<double, 8> dist(0.47297, 0.482529, 0.000504, -0.000246, 0.042125,
