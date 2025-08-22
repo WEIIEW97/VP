@@ -109,8 +109,16 @@ cv::Mat ChessboardCalibrator::get_warped_image(
 cv::Mat ChessboardCalibrator::get_rgb_image() const { return rgb_; }
 
 ChessboardCalibrator::CalibResult
-ChessboardCalibrator::detect(const std::string& yuv_path, int h, int w,
+ChessboardCalibrator::detect(const std::string& file_path, int h, int w,
                              const cv::Size& pattern_size, float square_size) {
-  auto rgb = i420_to_rgb(yuv_path, h, w);
+  // whether file_path ends with ".yuv" or image file extension
+  cv::Mat rgb;
+  if (file_path.ends_with(".yuv")) {
+    rgb = i420_to_rgb(file_path, h, w);
+  } else {
+    rgb = cv::imread(file_path, cv::IMREAD_ANYCOLOR);
+    cv::cvtColor(rgb, rgb, cv::COLOR_BGR2RGB);
+    rgb_ = rgb.clone();
+  }
   return chessboard_detect(rgb, pattern_size, square_size);
 }

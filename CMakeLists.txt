@@ -57,7 +57,7 @@ target_link_libraries(
 
 add_executable(
         recalib_test
-        src/recalib.cpp
+        ${sources}
         test/test_recalib.cpp
 )
 
@@ -70,6 +70,8 @@ target_link_libraries(
 target_include_directories(
         recalib_test
         PRIVATE
+        ${EIGEN3_INCLUDE_DIR}
+        ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}
         ${OpenCV_INCLUDE_DIRS}
         ${VP_INCLUDE_DIR}
 )

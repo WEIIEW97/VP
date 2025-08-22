@@ -35,7 +35,7 @@ public:
     cv::Size pattern_size;
   };
 
-  CalibResult detect(const std::string& yuv_path, int h, int w,
+  CalibResult detect(const std::string& file_path, int h, int w,
                      const cv::Size& pattern_size = cv::Size(8, 5),
                      float square_size = 0.025);
 

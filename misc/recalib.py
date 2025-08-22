@@ -4,6 +4,8 @@ import math
 import json
 import matplotlib.pyplot as plt
 
+from pathlib import Path
+
 
 def load_json(json_path: str):
     with open(json_path, "r") as f:
@@ -143,36 +145,73 @@ def recalib(im: np.ndarray, intri: dict, rotate_angle: float):
     return corrected_im
 
 
+def main():
+    root_dir = "/home/william/extdisk/data/calib/image_save"
+    # retrieve all directories in root_dir if begin with "abonr"
+    dirs = [
+        d for d in Path(root_dir).iterdir() if d.is_dir() and d.name.startswith("abnor")
+    ]
+    for dir in dirs:
+        intri_path = (
+            Path(root_dir)
+            / "calibration_intrinsic"
+            / dir.name
+            / "result/intrinsics_colin.json"
+        )
+        intri = load_json(intri_path)
+        img_path = dir / "RGB"
+        # find the .png file in img_path
+        img_files = [
+            f for f in img_path.iterdir() if f.is_file() and f.suffix == ".png"
+        ]
+        for img_file in img_files:
+            recalib_file = str(img_file).replace(".png", "_recalib.png")
+            img = cv2.imread(str(img_file))
+            angles, img = chessboard_detect(
+                img,
+                np.array(intri["cam_intrinsic"]).reshape((3, 3)),
+                np.array(intri["cam_distcoeffs"]),
+                pattern_size=(6, 3),
+                square_size=0.025,
+            )
+            print(f"detect angle offset is: {angles}")
+            corrected_im = recalib(img, intri, angles[1])
+            cv2.imwrite(str(recalib_file), corrected_im)
+
+    print("done")
+
+
 if __name__ == "__main__":
-    yuv_path = "/home/william/Codes/vp/data/recalib/calib.yuv"
-    intri_path = "/home/william/Codes/vp/data/recalib/intrinsics.json"
-    extri_path = "/home/william/Codes/vp/data/recalib/extrinsics.json"
+    # yuv_path = "/home/william/Codes/vp/data/recalib/calib.yuv"
+    # intri_path = "/home/william/Codes/vp/data/recalib/intrinsics.json"
+    # extri_path = "/home/william/Codes/vp/data/recalib/extrinsics.json"
 
-    intri = load_json(intri_path)
-    extri = load_json(extri_path)
+    # intri = load_json(intri_path)
+    # extri = load_json(extri_path)
 
-    rgb = convert_yuv_to_rgb(yuv_path, 1080, 1920)
-    plt.figure()
-    plt.imshow(rgb)
-    plt.axis("off")
-    plt.tight_layout()
-    plt.show()
+    # rgb = convert_yuv_to_rgb(yuv_path, 1080, 1920)
+    # plt.figure()
+    # plt.imshow(rgb)
+    # plt.axis("off")
+    # plt.tight_layout()
+    # plt.show()
 
-    angles, corners = chessboard_detect(
-        rgb,
-        np.array(intri["cam_intrinsic"]).reshape((3, 3)),
-        np.array(intri["cam_distcoeffs"]),
-    )
-    print(f"detect angle offset is: {angles}")
-    plt.figure()
-    plt.imshow(corners)
-    plt.axis("off")
-    plt.tight_layout()
-    plt.show()
+    # angles, corners = chessboard_detect(
+    #     rgb,
+    #     np.array(intri["cam_intrinsic"]).reshape((3, 3)),
+    #     np.array(intri["cam_distcoeffs"]),
+    # )
+    # print(f"detect angle offset is: {angles}")
+    # plt.figure()
+    # plt.imshow(corners)
+    # plt.axis("off")
+    # plt.tight_layout()
+    # plt.show()
 
-    corrected_im = recalib(rgb, intri, angles[1])
-    plt.figure()
-    plt.imshow(corrected_im)
-    plt.axis("off")
-    plt.tight_layout()
-    plt.show()
+    # corrected_im = recalib(rgb, intri, angles[1])
+    # plt.figure()
+    # plt.imshow(corrected_im)
+    # plt.axis("off")
+    # plt.tight_layout()
+    # plt.show()
+    main()

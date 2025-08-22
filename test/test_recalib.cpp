@@ -17,25 +17,73 @@
 #include "recalib.h"
 #include <string>
 #include <iostream>
+#include <filesystem>
+#include <fstream>
+#include "../src/json.h"
+
+using json = nlohmann::json;
+namespace fs = std::filesystem;
+
+// Helper function to get directories starting with a prefix
+std::vector<std::string> get_dirs(const std::string& root_dir,
+                                  const std::string& prefix) {
+  std::vector<std::string> dirs;
+  for (const auto& entry : fs::directory_iterator(root_dir)) {
+    if (entry.is_directory() &&
+        entry.path().filename().string().starts_with(prefix)) {
+      dirs.push_back(entry.path().string());
+    }
+  }
+  return dirs;
+}
+
+std::vector<std::string> get_files(const std::string& dir,
+                                   const std::string& ext) {
+  std::vector<std::string> files;
+  for (const auto& entry : fs::directory_iterator(dir)) {
+    if (entry.is_regular_file() && entry.path().extension() == ext) {
+      files.push_back(entry.path().string());
+    }
+  }
+  return files;
+}
+
 
 int main() {
-  std::string yuv_path = std::string(PROJECT_HOME) + "/recalib/calib.yuv";
-  cv::Matx33d K(1057.860222, 0, 977.840981, 0, 1059.252092, 572.529502, 0, 0,
-                1);
-  cv::Vec<double, 8> dist(0.47297, 0.482529, 0.000504, -0.000246, 0.042125,
-                          0.877016, 0.602693, 0.192676);
-
-  auto calibrator = ChessboardCalibrator(K, dist);
-  auto res = calibrator.detect(yuv_path, 1080, 1920);
-  if (res.success) {
-    std::cout << "Calibration result is: (pitch, yaw, roll) in degrees "
-              << res.angle_degrees << std::endl;
-    auto verbose_img = calibrator.get_warped_image(res);
-    cv::imshow("warped image", verbose_img);
-    cv::waitKey(0);
-    cv::destroyAllWindows();
-  } else {
-    std::cout << "Failed to run calibration!" << std::endl;
+  std::string root_dir = "/home/william/extdisk/data/calib/image_save";
+  // retrieve all directories in root_dir if begin with "abnor"
+  std::vector<std::string> dirs = get_dirs(root_dir, "abnor");
+  for (const auto& dir : dirs) {
+    fs::path intri_path = fs::path(root_dir) / "calibration_intrinsic" /
+                          fs::path(dir).filename() / "result" /
+                          "intrinsics_colin.json";
+    fs::path img_path = fs::path(dir) / "RGB";
+    std::vector<std::string> img_files = get_files(img_path.string(), ".png");
+    auto intri = read_json(intri_path.string());
+    cv::Matx33d K(intri["cam_intrinsic"][0], intri["cam_intrinsic"][1],
+                  intri["cam_intrinsic"][2], intri["cam_intrinsic"][3],
+                  intri["cam_intrinsic"][4], intri["cam_intrinsic"][5],
+                  intri["cam_intrinsic"][6], intri["cam_intrinsic"][7],
+                  intri["cam_intrinsic"][8]);
+    cv::Vec<double, 8> dist(
+        intri["cam_distcoeffs"][0], intri["cam_distcoeffs"][1],
+        intri["cam_distcoeffs"][2], intri["cam_distcoeffs"][3],
+        intri["cam_distcoeffs"][4], intri["cam_distcoeffs"][5],
+        intri["cam_distcoeffs"][6], intri["cam_distcoeffs"][7]);
+    auto calibrator = ChessboardCalibrator(K, dist);
+    for (const auto& img_file : img_files) {
+      auto res = calibrator.detect(img_file, 1080, 1920, cv::Size(6, 3));
+      if (res.success) {
+        std::cout << "Calibration result is: (pitch, yaw, roll) in degrees "
+                  << res.angle_degrees << std::endl;
+        auto verbose_img = calibrator.get_warped_image(res);
+        cv::imshow("warped image", verbose_img);
+        cv::waitKey(0);
+        cv::destroyAllWindows();
+      } else {
+        std::cout << "Failed to run calibration!" << std::endl;
+      }
+    }
   }
   return 0;
 }
