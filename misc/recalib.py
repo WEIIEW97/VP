@@ -123,7 +123,7 @@ def chessboard_detect(rgb, K, dist_coef, pattern_size=(8, 5), square_size=0.025)
     return (pitch, yaw, roll), img
 
 
-def recalib(im: np.ndarray, intri: dict, rotate_angle: float):
+def recalib(im: np.ndarray, intri: dict, rotate_angle: float, crop: bool = False):
     K = np.array(intri["cam_intrinsic"]).reshape((3, 3))
     cx = K[0, 2]
     cy = K[1, 2]
@@ -142,7 +142,92 @@ def recalib(im: np.ndarray, intri: dict, rotate_angle: float):
         borderMode=cv2.BORDER_CONSTANT,
         borderValue=(0, 0, 0),
     )
+
+    # add an option to crop the image with the maximum inner rectangle with the valid pixels(avoid black border after rotation)
+    if crop:
+        gray = cv2.cvtColor(corrected_im, cv2.COLOR_BGR2GRAY)
+        # max_rect = find_max_inscribed_rect(gray)
+        top, bottom, left, right = find_max_inner_rect(corrected_im)
+        # Crop the image to remove black borders
+        # [x, y, width, height]
+        cropped_im = corrected_im[
+           top:bottom+1, left:right+1
+        ]
+        # Resize back to original dimensions
+        final_im = cv2.resize(cropped_im, (w, h), interpolation=cv2.INTER_LANCZOS4)
+        return final_im
+
     return corrected_im
+
+
+def find_max_inscribed_rect1(gray):
+    """Find the maximum inscribed rectangle containing only valid (non-black) pixels"""
+    # Create mask of valid pixels and convert to uint8
+    mask = (gray > 0).astype(np.uint8)
+
+    # Find contours
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if not contours:
+        return [0, 0, gray.shape[1], gray.shape[0]]  # Return full image if no contours
+
+    # Find the largest contour
+    max_contour = max(contours, key=cv2.contourArea)
+
+    # Get bounding rectangle [x, y, width, height]
+    x, y, w, h = cv2.boundingRect(max_contour)
+
+    return [x, y, w, h]
+
+
+def max_rect_in_hist(hist):
+    # 实现直方图最大矩形算法（返回left, right, height, area）
+    stack = []
+    max_area = 0
+    max_rect = (0, 0, 0, 0)
+    n = len(hist)
+    for idx in range(n):
+        start = idx
+        while stack and stack[-1][1] > hist[idx]:
+            i, h = stack.pop()
+            area = h * (idx - i)
+            if area > max_area:
+                max_area = area
+                max_rect = (i, idx, h, area)
+            start = i
+        stack.append((start, hist[idx]))
+    while stack:
+        i, h = stack.pop()
+        area = h * (n - i)
+        if area > max_area:
+            max_area = area
+            max_rect = (i, n, h, area)
+    return max_rect
+
+
+def find_max_inner_rect(R):
+    # 二值化：非黑色区域为1
+    binary = np.all(R != [0, 0, 0], axis=-1).astype(int)
+    H, W = binary.shape
+    dp = np.zeros((H, W), dtype=int)
+    # 计算dp表
+    for i in range(H):
+        for j in range(W):
+            if binary[i][j] == 1:
+                dp[i][j] = dp[i - 1][j] + 1 if i > 0 else 1
+            else:
+                dp[i][j] = 0
+    max_rect = (0, 0, 0, 0, 0)  # top, bottom, left, right, area
+    for i in range(H):
+        hist = dp[i]
+        left, right, height, area = max_rect_in_hist(hist)
+        if area > max_rect[4]:
+            top = i - height + 1
+            bottom = i
+            left = left
+            right = right - 1  # 因为right是开区间
+            max_rect = (top, bottom, left, right, area)
+    return max_rect[:4]  # 返回 (top, bottom, left, right)
 
 
 def main():
@@ -175,8 +260,13 @@ def main():
                 square_size=0.025,
             )
             print(f"detect angle offset is: {angles}")
-            corrected_im = recalib(img, intri, angles[1])
-            cv2.imwrite(str(recalib_file), corrected_im)
+            corrected_im = recalib(img, intri, angles[1], True)
+            # cv2.imwrite(str(recalib_file), corrected_im)
+            plt.figure()
+            plt.imshow(corrected_im)
+            plt.axis("off")
+            plt.tight_layout()
+            plt.show()
 
     print("done")
 

@@ -48,7 +48,6 @@ std::vector<std::string> get_files(const std::string& dir,
   return files;
 }
 
-
 int main() {
   std::string root_dir = "/home/william/extdisk/data/calib/image_save";
   // retrieve all directories in root_dir if begin with "abnor"

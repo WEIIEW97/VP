@@ -4,11 +4,14 @@ project(vp)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+
+
 find_package(Eigen3 REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(fmt REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Ceres REQUIRED)
+find_package(Boost REQUIRED COMPONENTS program_options)
 
 set(VP_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(ethzasl_apriltag2_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rd/ethzasl_apriltag2/include)
@@ -56,22 +59,48 @@ target_link_libraries(
 )
 
 add_executable(
-        recalib_test
+        test_recalib
         ${sources}
         test/test_recalib.cpp
 )
 
 target_link_libraries(
-        recalib_test
+        test_recalib
         PRIVATE
         ${OpenCV_LIBS}
         )
 
 target_include_directories(
-        recalib_test
+        test_recalib
         PRIVATE
         ${EIGEN3_INCLUDE_DIR}
         ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}
         ${OpenCV_INCLUDE_DIRS}
         ${VP_INCLUDE_DIR}
+)
+
+
+set(recalib_release_name "recalib_vp")
+
+add_executable(
+        ${recalib_release_name}
+        ${sources}
+        tool_recalib.cpp
+)
+
+target_link_libraries(
+        ${recalib_release_name}
+        PRIVATE
+        ${OpenCV_LIBS}
+        ${Boost_PROGRAM_OPTIONS_LIBRARY}
+        )
+
+target_include_directories(
+        ${recalib_release_name}
+        PRIVATE
+        ${EIGEN3_INCLUDE_DIR}
+        ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}
+        ${OpenCV_INCLUDE_DIRS}
+        ${VP_INCLUDE_DIR}
+        ${Boost_INCLUDE_DIRS}
 )
