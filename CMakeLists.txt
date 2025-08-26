@@ -4,12 +4,15 @@ project(vp)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-
+if(MSVC)
+set(GFLAGS_USE_TARGET_NAMESPACE ON) # for unknown reason have to add this shit
+endif()
 
 find_package(Eigen3 REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(fmt REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(gflags REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(Boost REQUIRED COMPONENTS program_options)
 
