@@ -32,11 +32,11 @@ float psycho(const string& input_path, const string& intrinsic_path,
   float rotation_angle_degrees = std::numeric_limits<float>::max();
   auto intrinsic = read_json(intrinsic_path);
   cv::Matx33d K(
-      intrinsic["cam_intrinsicnsic"][0], intrinsic["cam_intrinsicnsic"][1],
-      intrinsic["cam_intrinsicnsic"][2], intrinsic["cam_intrinsicnsic"][3],
-      intrinsic["cam_intrinsicnsic"][4], intrinsic["cam_intrinsicnsic"][5],
-      intrinsic["cam_intrinsicnsic"][6], intrinsic["cam_intrinsicnsic"][7],
-      intrinsic["cam_intrinsicnsic"][8]);
+      intrinsic["cam_intrinsic"][0], intrinsic["cam_intrinsic"][1],
+      intrinsic["cam_intrinsic"][2], intrinsic["cam_intrinsic"][3],
+      intrinsic["cam_intrinsic"][4], intrinsic["cam_intrinsic"][5],
+      intrinsic["cam_intrinsic"][6], intrinsic["cam_intrinsic"][7],
+      intrinsic["cam_intrinsic"][8]);
   cv::Vec<double, 8> dist(
       intrinsic["cam_distcoeffs"][0], intrinsic["cam_distcoeffs"][1],
       intrinsic["cam_distcoeffs"][2], intrinsic["cam_distcoeffs"][3],

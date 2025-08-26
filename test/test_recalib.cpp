@@ -48,7 +48,7 @@ std::vector<std::string> get_files(const std::string& dir,
   return files;
 }
 
-int main() {
+void test_patch() {
   std::string root_dir = "/home/william/extdisk/data/calib/image_save";
   // retrieve all directories in root_dir if begin with "abnor"
   std::vector<std::string> dirs = get_dirs(root_dir, "abnor");
@@ -84,5 +84,40 @@ int main() {
       }
     }
   }
+}
+
+void test_single() {
+  std::string img_path = "/home/william/extdisk/data/calib/image_save/abnor-63/"
+                         "RGB/rgbvi-2025-8-22-12-2-16.png";
+  std::string intri_path =
+      "/home/william/extdisk/data/calib/image_save/calibration_intrinsic/"
+      "abnor-63/result/intrinsics_colin.json";
+  auto intri = read_json(intri_path);
+  cv::Matx33d K(intri["cam_intrinsic"][0], intri["cam_intrinsic"][1],
+                intri["cam_intrinsic"][2], intri["cam_intrinsic"][3],
+                intri["cam_intrinsic"][4], intri["cam_intrinsic"][5],
+                intri["cam_intrinsic"][6], intri["cam_intrinsic"][7],
+                intri["cam_intrinsic"][8]);
+  cv::Vec<double, 8> dist(
+      intri["cam_distcoeffs"][0], intri["cam_distcoeffs"][1],
+      intri["cam_distcoeffs"][2], intri["cam_distcoeffs"][3],
+      intri["cam_distcoeffs"][4], intri["cam_distcoeffs"][5],
+      intri["cam_distcoeffs"][6], intri["cam_distcoeffs"][7]);
+  auto calibrator = ChessboardCalibrator(K, dist);
+  auto res = calibrator.detect(img_path, 1080, 1920, cv::Size(6, 3));
+  if (res.success) {
+    std::cout << "Calibration result is: (pitch, yaw, roll) in degrees "
+              << res.angle_degrees << std::endl;
+    auto verbose_img = calibrator.get_warped_image(res);
+    cv::imshow("warped image", verbose_img);
+    cv::waitKey(0);
+    cv::destroyAllWindows();
+  } else {
+    std::cout << "Failed to run calibration!" << std::endl;
+  }
+}
+
+int main() {
+  test_single();
   return 0;
 }

@@ -20,9 +20,16 @@ set(PROJECT_HOME ${CMAKE_SOURCE_DIR})
 file(TO_CMAKE_PATH "${PROJECT_HOME}" PROJECT_HOME_ESCAPED)
 add_compile_definitions(PROJECT_HOME="${PROJECT_HOME_ESCAPED}")
 
-file(GLOB_RECURSE sources ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+file(GLOB_RECURSE sources ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp) 
 
-add_subdirectory(3rd)
+# do not include aprilgrid2.cpp, stitch.cpp and aprilgrid2.h, stitch.h
+list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/stitch.cpp)
+list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/stitch.h)
+list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/aprilgrid2.cpp)
+list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/aprilgrid2.h)
+
+
+# add_subdirectory(3rd)
 
 add_executable(
         ${PROJECT_NAME}
@@ -44,7 +51,7 @@ target_include_directories(
         ${EIGEN3_INCLUDE_DIR}
         ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}
         ${OpenCV_INCLUDE_DIRS}
-        ${ethzasl_apriltag2_INCLUDE_DIR}
+        # ${ethzasl_apriltag2_INCLUDE_DIR}
         ${CERES_INCLUDE_DIRS}
 )
 
@@ -54,7 +61,7 @@ target_link_libraries(
         nlohmann_json::nlohmann_json
         fmt::fmt
         ${OpenCV_LIBS}
-        ethzasl_apriltag2
+        # ethzasl_apriltag2
         ${CERES_LIBRARIES}
 )
 
@@ -68,15 +75,22 @@ target_link_libraries(
         test_recalib
         PRIVATE
         ${OpenCV_LIBS}
+        ${CERES_LIBRARIES}
+        nlohmann_json::nlohmann_json
+        fmt::fmt
+        # ethzasl_apriltag2
         )
 
 target_include_directories(
         test_recalib
         PRIVATE
+        ${VP_INCLUDE_DIR}
+        ${fmt_INCLUDE_DIRS}
         ${EIGEN3_INCLUDE_DIR}
         ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}
         ${OpenCV_INCLUDE_DIRS}
-        ${VP_INCLUDE_DIR}
+        # ${ethzasl_apriltag2_INCLUDE_DIR}
+        ${CERES_INCLUDE_DIRS}
 )
 
 
@@ -84,7 +98,7 @@ set(recalib_release_name "recalib_vp")
 
 add_executable(
         ${recalib_release_name}
-        ${sources}
+        src/recalib.cpp
         tool_recalib.cpp
 )
 
@@ -93,13 +107,15 @@ target_link_libraries(
         PRIVATE
         ${OpenCV_LIBS}
         ${Boost_PROGRAM_OPTIONS_LIBRARY}
+        nlohmann_json::nlohmann_json
+        # ethzasl_apriltag2
         )
 
 target_include_directories(
         ${recalib_release_name}
         PRIVATE
-        ${EIGEN3_INCLUDE_DIR}
         ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}
+        ${EIGEN3_INCLUDE_DIR}
         ${OpenCV_INCLUDE_DIRS}
         ${VP_INCLUDE_DIR}
         ${Boost_INCLUDE_DIRS}
