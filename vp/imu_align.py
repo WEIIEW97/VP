@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Multi-Group IMU Data Parser with Video Frame Extraction
 
@@ -174,7 +173,7 @@ def find_closest_imu_data(frame_timestamp: int, imu_data: Dict[int, Dict[str, An
             return closest_data['yaw'], closest_data['pitch'], closest_data['roll']
 
 
-def extract_frames_by_number(video_path: str, output_dir: str, start_frame: int, num_frames: int) -> Dict[int, str]:
+def extract_frames_by_number(video_path: str, output_dir: str, start_frame: int, num_frames: int, sep_frame: int) -> Dict[int, str]:
     """
     Extract frames from H.265 video file by frame number.
     
@@ -192,7 +191,7 @@ def extract_frames_by_number(video_path: str, output_dir: str, start_frame: int,
     
     # Use ffmpeg to extract frames by frame number
     for i in range(num_frames):
-        frame_number = start_frame + i
+        frame_number = start_frame + i * sep_frame
         output_filename = f"frame_{frame_number:06d}.png"
         output_path = os.path.join(output_dir, output_filename)
         
@@ -220,7 +219,7 @@ def extract_frames_by_number(video_path: str, output_dir: str, start_frame: int,
 
 
 def generate_frame_imu_mapping(frame_timestamps: List[int], imu_data: Dict[int, Dict[str, Any]], 
-                              frame_paths: Dict[int, str], start_frame: int, num_frames: int) -> Dict[int, Dict[str, Any]]:
+                              frame_paths: Dict[int, str], start_frame: int, num_frames: int, sep_frame: int) -> Dict[int, Dict[str, Any]]:
     """
     Generate mapping between frame indices and IMU data.
     
@@ -237,7 +236,7 @@ def generate_frame_imu_mapping(frame_timestamps: List[int], imu_data: Dict[int, 
     frame_mapping = {}
     
     for i in range(num_frames):
-        frame_idx = start_frame + i
+        frame_idx = start_frame + i * sep_frame
         if i in frame_paths and frame_idx < len(frame_timestamps):
             timestamp = frame_timestamps[frame_idx]
             yaw, pitch, roll = find_closest_imu_data(timestamp, imu_data)
@@ -301,7 +300,7 @@ def find_data_groups(base_dir: str) -> List[Dict[str, str]]:
     return data_groups
 
 
-def process_data_group(group_info: Dict[str, str], base_dir: str, start_frame: int = 300, num_frames: int = 5):
+def process_data_group(group_info: Dict[str, str], base_dir: str, start_frame: int = 300, num_frames: int = 5, sep_frame: int = 1):
     """
     Process a single data group.
     
@@ -310,6 +309,7 @@ def process_data_group(group_info: Dict[str, str], base_dir: str, start_frame: i
         base_dir: Base directory for output
         start_frame: Starting frame number
         num_frames: Number of frames to extract
+        sep_frame: Frame separation interval
     """
     group_name = group_info['name']
     print(f"\n=== Processing Group: {group_name} ===")
@@ -329,21 +329,22 @@ def process_data_group(group_info: Dict[str, str], base_dir: str, start_frame: i
         print(f"  Found {len(frame_timestamps)} frame timestamps")
         
         # Check if we have enough frames
-        if start_frame + num_frames > len(frame_timestamps):
+        max_frame_needed = start_frame + (num_frames - 1) * sep_frame
+        if max_frame_needed >= len(frame_timestamps):
             print(f"  Warning: Requested frames exceed available frames. Adjusting parameters.")
-            num_frames = max(0, len(frame_timestamps) - start_frame)
+            num_frames = max(0, (len(frame_timestamps) - start_frame) // sep_frame + 1)
             if num_frames == 0:
                 print(f"  No frames available after skipping.")
                 return
         
         # Extract frames
-        print(f"  Extracting frames {start_frame} to {start_frame + num_frames - 1}...")
-        frame_paths = extract_frames_by_number(group_info['video_file'], output_dir, start_frame, num_frames)
+        print(f"  Extracting frames starting from {start_frame} with separation {sep_frame}...")
+        frame_paths = extract_frames_by_number(group_info['video_file'], output_dir, start_frame, num_frames, sep_frame)
         print(f"  Extracted {len(frame_paths)} frames")
         
         # Generate frame-IMU mapping
         print(f"  Generating frame-IMU mapping...")
-        frame_mapping = generate_frame_imu_mapping(frame_timestamps, imu_data, frame_paths, start_frame, num_frames)
+        frame_mapping = generate_frame_imu_mapping(frame_timestamps, imu_data, frame_paths, start_frame, num_frames, sep_frame)
         print(f"  Generated mapping for {len(frame_mapping)} frames")
         
         # Save mapping
@@ -362,7 +363,7 @@ def process_data_group(group_info: Dict[str, str], base_dir: str, start_frame: i
         traceback.print_exc()
         return None
 
-def process_align(video_path: str, index_path: str, imu_path: str, output_dir: str, start_frame: int = 300, num_frames: int = 5):
+def process_align(video_path: str, index_path: str, imu_path: str, output_dir: str, start_frame: int = 300, num_frames: int = 5, sep_frame: int = 1):
     if not all(os.path.exists(path) for path in [video_path, index_path, imu_path]):
         print("Some required files are missing!")
         return
@@ -379,21 +380,22 @@ def process_align(video_path: str, index_path: str, imu_path: str, output_dir: s
         print(f"Found {len(frame_timestamps)} frame timestamps")
         
         # Check if we have enough frames
-        if start_frame + num_frames > len(frame_timestamps):
+        max_frame_needed = start_frame + (num_frames - 1) * sep_frame
+        if max_frame_needed >= len(frame_timestamps):
             print(f"Warning: Requested frames exceed available frames. Adjusting parameters.")
-            num_frames = max(0, len(frame_timestamps) - start_frame)
+            num_frames = max(0, (len(frame_timestamps) - start_frame) // sep_frame + 1)
             if num_frames == 0:
                 print("No frames available after skipping.")
                 return
         
         # Extract frames
-        print(f"Extracting frames {start_frame} to {start_frame + num_frames - 1}...")
-        frame_paths = extract_frames_by_number(video_path, output_dir, start_frame, num_frames)
+        print(f"Extracting frames starting from {start_frame} with separation {sep_frame}...")
+        frame_paths = extract_frames_by_number(video_path, output_dir, start_frame, num_frames, sep_frame)
         print(f"Extracted {len(frame_paths)} frames")
         
         # Generate frame-IMU mapping
-        print("Generating frame-IMU mapping...")
-        frame_mapping = generate_frame_imu_mapping(frame_timestamps, imu_data, frame_paths, start_frame, num_frames)
+        print("Genering frame-IMU mapping...")
+        frame_mapping = generate_frame_imu_mapping(frame_timestamps, imu_data, frame_paths, start_frame, num_frames, sep_frame)
         print(f"Generated mapping for {len(frame_mapping)} frames")
         
         # Save mapping
@@ -404,7 +406,7 @@ def process_align(video_path: str, index_path: str, imu_path: str, output_dir: s
         print("\n=== Frame-IMU Mapping Results ===")
         for idx in sorted(frame_mapping.keys()):
             data = frame_mapping[idx]
-            actual_frame = start_frame + idx
+            actual_frame = start_frame + idx * sep_frame
             print(f"Frame {actual_frame} (index {idx}):")
             print(f"  Image: {data['image_file']}")
             print(f"  Yaw: {data['yaw']:.2f}°")
@@ -422,7 +424,7 @@ def process_align(video_path: str, index_path: str, imu_path: str, output_dir: s
         import traceback
         traceback.print_exc()
 
-def main():
+def main_group():
     """Main function to process all available data groups."""
     print("=== Multi-Group IMU Video Processing ===")
     
@@ -430,8 +432,9 @@ def main():
     base_dir = "/home/william/extdisk/data/boximu-rgb/imu-box"
     
     # Processing parameters
-    start_frame = 300  # Skip first 300 frames
-    num_frames = 5     # Only save 5 frames results
+    start_frame = 1000  # Skip first 300 frames
+    num_frames = 12    # Only save 2 frames results
+    sep_frame = 500   # Extract every 100th frame
     
     # Check if base directory exists
     if not os.path.exists(base_dir):
@@ -452,7 +455,7 @@ def main():
         # Process each group
         results = {}
         for group_info in data_groups:
-            result = process_data_group(group_info, base_dir, start_frame, num_frames)
+            result = process_data_group(group_info, base_dir, start_frame, num_frames, sep_frame)
             if result:
                 results[group_info['name']] = result
         
@@ -470,5 +473,31 @@ def main():
         traceback.print_exc()
 
 
+def main():
+    """Example usage of the frame extraction functionality."""
+    print("=== Example Frame Extraction ===")
+    
+    # Example parameters
+    video_path = "/path/to/your/video.h265"
+    index_path = "/path/to/your/video.h265.index"
+    imu_path = "/path/to/your/imu.txt"
+    output_dir = "/path/to/output"
+    
+    # Frame extraction parameters
+    start_frame = 1000    # Start from frame 1000
+    num_frames = 10       # Extract 10 frames
+    sep_frame = 50        # Extract every 50th frame
+    
+    # This will extract frames: 1000, 1050, 1100, 1150, 1200, 1250, 1300, 1350, 1400, 1450
+    print(f"Will extract frames: {[start_frame + i * sep_frame for i in range(num_frames)]}")
+    
+    # Uncomment the line below to run the extraction
+    process_align(video_path, index_path, imu_path, output_dir, start_frame, num_frames, sep_frame)
+
+
 if __name__ == "__main__":
-    main()
+    # index_path = "/home/william/extdisk/data/boximu-rgb/imu-box/20250731_135507_main.h265.index"
+    # print("Parsing H.265 index...")
+    # frame_timestamps = parse_h265_index(index_path)
+    # print(f"Found {len(frame_timestamps)} frame timestamps")
+    main_group()
