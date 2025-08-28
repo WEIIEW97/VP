@@ -31,7 +31,7 @@
 
 struct RecalibInfo {
   cv::Vec3d angle_degrees;
-  cv::Mat dst_im;
+  cv::Matx33d K;
 };
 
 E_RECALIB_API RecalibInfo recalib(const std::string& input_path,
@@ -39,3 +39,5 @@ E_RECALIB_API RecalibInfo recalib(const std::string& input_path,
                     int image_width = 1920,
                     const cv::Size& pattern_size = cv::Size(6, 3),
                     float square_size = 0.025);
+
+E_RECALIB_API cv::Mat adjust(const RecalibInfo& info, const cv::Mat& im);

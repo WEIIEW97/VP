@@ -46,6 +46,18 @@ RecalibInfo recalib(const string& input_path, const string& intrinsic_path,
     throw std::runtime_error("Recalibration failed!");
   }
 
-  auto corrected_im = calibrator.get_warped_image(res);
-  return {res.angle_degrees, corrected_im};
+  return {res.angle_degrees, K};
+}
+
+cv::Mat adjust(const RecalibInfo& info, const cv::Mat& im) {
+  auto pyr = info.angle_degrees;
+  auto h = im.rows;
+  auto w = im.cols;
+
+  auto R = pyr2R(pyr[0], pyr[1], pyr[2]);
+  auto H = info.K * R.inv() * info.K.inv();
+
+  cv::Mat warped;
+  cv::warpPerspective(im, warped, H, cv::Size(w, h));
+  return warped;
 }

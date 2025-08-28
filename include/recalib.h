@@ -53,3 +53,5 @@ private:
   cv::Mat K_;
   cv::Vec<double, 8> dist_;
 };
+
+cv::Matx33d pyr2R(double pitch, double yaw, double roll);
