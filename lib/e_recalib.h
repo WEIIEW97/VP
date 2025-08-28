@@ -16,16 +16,6 @@
 
 #pragma once
 
-#ifdef _WIN32
-    #ifdef BUILDING_E_RECALIB
-        #define E_RECALIB_API __declspec(dllexport)
-    #else
-        #define E_RECALIB_API __declspec(dllimport)
-    #endif
-#else
-    #define E_RECALIB_API __attribute__((visibility("default")))
-#endif
-
 #include <opencv2/opencv.hpp>
 #include <string>
 
@@ -34,10 +24,10 @@ struct RecalibInfo {
   cv::Matx33d K;
 };
 
-E_RECALIB_API RecalibInfo recalib(const std::string& input_path,
+RecalibInfo recalib(const std::string& input_path,
                     const std::string& intrinsic_path, int image_height = 1080,
                     int image_width = 1920,
                     const cv::Size& pattern_size = cv::Size(6, 3),
                     float square_size = 0.025);
 
-E_RECALIB_API cv::Mat adjust(const RecalibInfo& info, const cv::Mat& im);
+cv::Mat adjust(const RecalibInfo& info, const cv::Mat& im);

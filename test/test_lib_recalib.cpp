@@ -20,11 +20,8 @@
 #include <string>
 
 int main() {
-  std::string img_path = "/home/william/extdisk/data/calib/image_save/abnor-63/"
-                         "RGB/rgbvi-2025-8-22-12-2-16.png";
-  std::string intri_path =
-      "/home/william/extdisk/data/calib/image_save/calibration_intrinsic/"
-      "abnor-63/result/intrinsics_colin.json";
+  std::string img_path = "D:/william/codes/VP/data/recalib/rgbvi-2025-8-22-11-58-37.png";
+  std::string intri_path = "D:/william/codes/VP/data/recalib/intrinsics_colin.json";
   auto recalib_info = recalib(img_path, intri_path);
   std::cout << recalib_info.angle_degrees << std::endl;
 
