@@ -47,7 +47,7 @@ private:
   CalibResult chessboard_detect(const cv::Mat& rgb,
                                 const cv::Size& pattern_size,
                                 float square_size);
-
+  
 private:
   cv::Mat rgb_;
   cv::Mat K_;

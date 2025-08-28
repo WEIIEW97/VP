@@ -33,6 +33,7 @@ list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/aprilgrid2.h)
 
 
 # add_subdirectory(3rd)
+add_subdirectory(lib)
 
 add_executable(
         ${PROJECT_NAME}
@@ -81,7 +82,7 @@ target_link_libraries(
         ${CERES_LIBRARIES}
         nlohmann_json::nlohmann_json
         fmt::fmt
-        # ethzasl_apriltag2
+        # ethzasl_apriltang2
         )
 
 target_include_directories(

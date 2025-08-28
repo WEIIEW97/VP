@@ -123,20 +123,34 @@ def chessboard_detect(rgb, K, dist_coef, pattern_size=(8, 5), square_size=0.025)
     return (pitch, yaw, roll), img
 
 
-def recalib(im: np.ndarray, intri: dict, rotate_angle: float, crop: bool = False):
+def recalib(im: np.ndarray, intri: dict, rotation_angles: tuple, crop: bool = False):
+    """
+    Apply 3D rotation (pitch, yaw, roll) to image using perspective transformation.
+    
+    Args:
+        im: Input image
+        intri: Camera intrinsic parameters dictionary
+        rotation_angles: Tuple of (pitch, yaw, roll) angles in degrees
+        crop: Whether to crop black borders after rotation
+    
+    Returns:
+        Rotated image
+    """
     K = np.array(intri["cam_intrinsic"]).reshape((3, 3))
-    cx = K[0, 2]
-    cy = K[1, 2]
-    roll = rotate_angle
-
+    pitch, yaw, roll = rotation_angles
+    
     h, w = im.shape[:2]
-    # undistort_im = cv2.undistort(im, K, dist_coefs)
+    
+    R = pyr2R(pitch, yaw, roll)
 
-    center = (cx, cy)
-    rotation_matrix = cv2.getRotationMatrix2D(center, roll, 1.0)
-    corrected_im = cv2.warpAffine(
+    # Create homography matrix for perspective transformation
+    # H = K * R^(-1) * K^(-1)  # Correct formula for perspective transformation
+    H = K @ np.linalg.inv(R) @ np.linalg.inv(K)
+    
+    # Apply perspective transformation
+    corrected_im = cv2.warpPerspective(
         im,
-        rotation_matrix,
+        H,
         (w, h),
         flags=cv2.INTER_LINEAR,
         borderMode=cv2.BORDER_CONSTANT,
@@ -145,7 +159,6 @@ def recalib(im: np.ndarray, intri: dict, rotate_angle: float, crop: bool = False
 
     # add an option to crop the image with the maximum inner rectangle with the valid pixels(avoid black border after rotation)
     if crop:
-        gray = cv2.cvtColor(corrected_im, cv2.COLOR_BGR2GRAY)
         # max_rect = find_max_inscribed_rect(gray)
         top, bottom, left, right = find_max_inner_rect(corrected_im)
         # Crop the image to remove black borders
@@ -160,28 +173,40 @@ def recalib(im: np.ndarray, intri: dict, rotate_angle: float, crop: bool = False
     return corrected_im
 
 
-def find_max_inscribed_rect1(gray):
-    """Find the maximum inscribed rectangle containing only valid (non-black) pixels"""
-    # Create mask of valid pixels and convert to uint8
-    mask = (gray > 0).astype(np.uint8)
-
-    # Find contours
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    if not contours:
-        return [0, 0, gray.shape[1], gray.shape[0]]  # Return full image if no contours
-
-    # Find the largest contour
-    max_contour = max(contours, key=cv2.contourArea)
-
-    # Get bounding rectangle [x, y, width, height]
-    x, y, w, h = cv2.boundingRect(max_contour)
-
-    return [x, y, w, h]
+def pyr2R(pitch: float, yaw: float, roll: float) -> np.ndarray:
+    """
+    Create 3D rotation matrix from pitch, yaw, and roll angles.
+    
+    Args:
+        pitch: Pitch angle in degrees (rotation around X-axis)
+        yaw: Yaw angle in degrees (rotation around Z-axis)  
+        roll: Roll angle in degrees (rotation around Y-axis)
+    
+    Returns:
+        3x3 rotation matrix
+    """
+    # Convert angles to radians
+    pitch_rad = np.radians(pitch)
+    yaw_rad = np.radians(yaw)
+    roll_rad = np.radians(roll)
+    
+    # Create 3D rotation matrix using ZYX order (yaw -> pitch -> roll)
+    # Standard aerospace/robotics convention
+    cy, sy = np.cos(yaw_rad), np.sin(yaw_rad)
+    cp, sp = np.cos(pitch_rad), np.sin(pitch_rad)
+    cr, sr = np.cos(roll_rad), np.sin(roll_rad)
+    
+    # Rotation matrix R = Rz(yaw) * Ry(pitch) * Rx(roll)
+    # ZYX rotation order: first yaw around Z, then pitch around Y, then roll around X
+    R = np.array([
+        [cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+        [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
+        [-sp, cp * sr, cp * cr]
+    ])    
+    return R
 
 
 def max_rect_in_hist(hist):
-    # 实现直方图最大矩形算法（返回left, right, height, area）
     stack = []
     max_area = 0
     max_rect = (0, 0, 0, 0)
@@ -206,11 +231,10 @@ def max_rect_in_hist(hist):
 
 
 def find_max_inner_rect(R):
-    # 二值化：非黑色区域为1
     binary = np.all(R != [0, 0, 0], axis=-1).astype(int)
     H, W = binary.shape
     dp = np.zeros((H, W), dtype=int)
-    # 计算dp表
+
     for i in range(H):
         for j in range(W):
             if binary[i][j] == 1:
@@ -225,9 +249,9 @@ def find_max_inner_rect(R):
             top = i - height + 1
             bottom = i
             left = left
-            right = right - 1  # 因为right是开区间
+            right = right - 1  
             max_rect = (top, bottom, left, right, area)
-    return max_rect[:4]  # 返回 (top, bottom, left, right)
+    return max_rect[:4]  
 
 
 def main():
@@ -260,7 +284,7 @@ def main():
                 square_size=0.025,
             )
             print(f"detect angle offset is: {angles}")
-            corrected_im = recalib(img, intri, angles[1], True)
+            corrected_im = recalib(img, intri, angles, False)
             # cv2.imwrite(str(recalib_file), corrected_im)
             plt.figure()
             plt.imshow(corrected_im)

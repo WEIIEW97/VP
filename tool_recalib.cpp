@@ -25,18 +25,17 @@ using json = nlohmann::json;
 using namespace std;
 namespace po = boost::program_options;
 
-float psycho(const string& input_path, const string& intrinsic_path,
-             int image_height = 1080, int image_width = 1920,
-             const cv::Size& pattern_size = cv::Size(6, 3),
-             float square_size = 0.025) {
-  float rotation_angle_degrees = std::numeric_limits<float>::max();
+ChessboardCalibrator::CalibResult
+psycho(const string& input_path, const string& intrinsic_path,
+       int image_height = 1080, int image_width = 1920,
+       const cv::Size& pattern_size = cv::Size(6, 3),
+       float square_size = 0.025) {
   auto intrinsic = read_json(intrinsic_path);
-  cv::Matx33d K(
-      intrinsic["cam_intrinsic"][0], intrinsic["cam_intrinsic"][1],
-      intrinsic["cam_intrinsic"][2], intrinsic["cam_intrinsic"][3],
-      intrinsic["cam_intrinsic"][4], intrinsic["cam_intrinsic"][5],
-      intrinsic["cam_intrinsic"][6], intrinsic["cam_intrinsic"][7],
-      intrinsic["cam_intrinsic"][8]);
+  cv::Matx33d K(intrinsic["cam_intrinsic"][0], intrinsic["cam_intrinsic"][1],
+                intrinsic["cam_intrinsic"][2], intrinsic["cam_intrinsic"][3],
+                intrinsic["cam_intrinsic"][4], intrinsic["cam_intrinsic"][5],
+                intrinsic["cam_intrinsic"][6], intrinsic["cam_intrinsic"][7],
+                intrinsic["cam_intrinsic"][8]);
   cv::Vec<double, 8> dist(
       intrinsic["cam_distcoeffs"][0], intrinsic["cam_distcoeffs"][1],
       intrinsic["cam_distcoeffs"][2], intrinsic["cam_distcoeffs"][3],
@@ -46,16 +45,19 @@ float psycho(const string& input_path, const string& intrinsic_path,
   auto calibrator = ChessboardCalibrator(K, dist);
   auto res = calibrator.detect(input_path, image_height, image_width,
                                pattern_size, square_size);
-  if (res.success) {
-    rotation_angle_degrees = static_cast<float>(res.angle_degrees[1]);
-  } else {
-    std::cerr << "Failed to run calibration!" << std::endl;
+  if (!res.success) {
+    std::cerr << "Calibration failed!" << std::endl;
+    return {false,
+            cv::Vec3d(std::numeric_limits<float>::max(),
+                      std::numeric_limits<float>::max(),
+                      std::numeric_limits<float>::max()),
+            {}};
   }
-  return rotation_angle_degrees;
+  return res;
 }
 
 int main(int argc, char** argv) {
-  std::string input_path, intrinsic_path;
+  string input_path, intrinsic_path;
   int image_height, image_width;
   cv::Size pattern_size;
   float square_size;
@@ -85,20 +87,21 @@ int main(int argc, char** argv) {
   po::notify(vm);
 
   if (vm.count("help")) {
-    std::cout << desc << std::endl;
+    cout << desc << endl;
     return 1;
   }
 
-  float rotation_angle_degrees =
-      psycho(input_path, intrinsic_path, image_height, image_width,
-             pattern_size, square_size);
-  if (rotation_angle_degrees != std::numeric_limits<float>::max()) {
-    std::cout << "Rotation angle (degrees): " << rotation_angle_degrees
-              << std::endl;
+  auto calib_result = psycho(input_path, intrinsic_path, image_height,
+                             image_width, pattern_size, square_size);
+  if (calib_result.success) {
+    cout << "Rotation angle (degrees): " << "\n"
+         << "Around X: " << calib_result.angle_degrees[0] << "\n"
+         << "Around Z: " << calib_result.angle_degrees[1] << "\n"
+         << "Around Y: " << calib_result.angle_degrees[2] << endl;
   } else {
-    std::cerr << "Failed to detect rotation angles, please check your "
-                 "conditions manually!"
-              << std::endl;
+    cerr << "Failed to detect rotation angles, please check your "
+            "conditions manually!"
+         << endl;
     return -1;
   }
   return 0;

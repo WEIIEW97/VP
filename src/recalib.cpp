@@ -19,6 +19,33 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <numbers>
+
+cv::Matx33d pyr2R(double pitch, double yaw, double roll) {
+  // Convert degrees to radians
+  pitch = pitch / 180.0 * std::numbers::pi;
+  yaw = yaw / 180.0 * std::numbers::pi;
+  roll = roll / 180.0 * std::numbers::pi;
+
+  double cy = cos(yaw), sy = sin(yaw);
+  double cp = cos(pitch), sp = sin(pitch);
+  double cr = cos(roll), sr = sin(roll);
+
+  cv::Matx33d R;
+  R(0, 0) = cy * cp;
+  R(0, 1) = cy * sp * sr - sy * cr;
+  R(0, 2) = cy * sp * cr + sy * sr;
+
+  R(1, 0) = sy * cp;
+  R(1, 1) = sy * sp * sr + cy * cr;
+  R(1, 2) = sy * sp * cr - cy * sr;
+
+  R(2, 0) = -sp;
+  R(2, 1) = cp * sr;
+  R(2, 2) = cp * cr;
+
+  return R;
+}
 
 cv::Mat ChessboardCalibrator::i420_to_rgb(const std::string& yuv_path, int h,
                                           int w) {
@@ -95,14 +122,13 @@ ChessboardCalibrator::CalibResult ChessboardCalibrator::chessboard_detect(
 
 cv::Mat ChessboardCalibrator::get_warped_image(
     const ChessboardCalibrator::CalibResult& calib_res) const {
-  auto yaw = calib_res.angle_degrees[1];
+  auto pyr = calib_res.angle_degrees;
   auto h = rgb_.rows;
   auto w = rgb_.cols;
-  auto opticial_center = cv::Point2f(K_.at<double>(0, 2), K_.at<double>(1, 2));
-
-  auto rmat = cv::getRotationMatrix2D(opticial_center, yaw, 1);
   cv::Mat warped;
-  cv::warpAffine(rgb_, warped, rmat, rgb_.size());
+  auto R = pyr2R(pyr[0], pyr[1], pyr[2]);
+  auto H = K_ * R.inv() * K_.inv();
+  cv::warpPerspective(rgb_, warped, H, cv::Size(w, h));
   return warped;
 }
 

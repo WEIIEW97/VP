@@ -432,9 +432,9 @@ def main_group():
     base_dir = "/home/william/extdisk/data/boximu-rgb/imu-box"
     
     # Processing parameters
-    start_frame = 1000  # Skip first 300 frames
-    num_frames = 12    # Only save 2 frames results
-    sep_frame = 500   # Extract every 100th frame
+    start_frame = 200  # Skip first 300 frames
+    num_frames = 5    # Only save 2 frames results
+    sep_frame = 200   # Extract every 100th frame
     
     # Check if base directory exists
     if not os.path.exists(base_dir):
@@ -496,7 +496,7 @@ def main():
 
 
 if __name__ == "__main__":
-    # index_path = "/home/william/extdisk/data/boximu-rgb/imu-box/20250731_135507_main.h265.index"
+    # index_path = "/home/william/extdisk/data/boximu-rgb/imu-box/20250731_140008_main.h265.index"
     # print("Parsing H.265 index...")
     # frame_timestamps = parse_h265_index(index_path)
     # print(f"Found {len(frame_timestamps)} frame timestamps")
