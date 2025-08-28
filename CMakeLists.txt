@@ -97,6 +97,23 @@ target_include_directories(
         ${CERES_INCLUDE_DIRS}
 )
 
+add_executable(
+        test_lib_recalib
+        test/test_lib_recalib.cpp
+)
+
+target_link_libraries(
+        test_lib_recalib
+        PRIVATE
+        recalib
+        )
+
+target_include_directories(
+        test_lib_recalib
+        PRIVATE
+        ${CMAKE_SOURCE_DIR}/lib
+)
+
 
 set(recalib_release_name "recalib_vp")
 
