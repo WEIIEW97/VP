@@ -17,7 +17,7 @@
 #include "recalib.h"
 #include <string>
 #include <iostream>
-#include "src/json.h"
+#include "../src/json.h"
 #include <boost/program_options.hpp>
 #include <limits>
 

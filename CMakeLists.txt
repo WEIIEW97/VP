@@ -120,7 +120,7 @@ set(recalib_release_name "recalib_vp")
 add_executable(
         ${recalib_release_name}
         src/recalib.cpp
-        tool_recalib.cpp
+        tool/tool_recalib.cpp
 )
 
 target_link_libraries(
