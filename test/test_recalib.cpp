@@ -106,7 +106,7 @@ void test_single() {
   auto calibrator = ChessboardCalibrator(K, dist);
   auto res = calibrator.detect(img_path, 1080, 1920, cv::Size(6, 3));
   if (res.success) {
-    std::cout << "Calibration result is: (pitch, yaw, roll) in degrees "
+    std::cout << "Calibration result is: (yaw, pitch, roll) in degrees "
               << res.angle_degrees << std::endl;
     auto verbose_img = calibrator.get_warped_image(res);
     cv::imshow("warped image", verbose_img);

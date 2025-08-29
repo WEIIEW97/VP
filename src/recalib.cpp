@@ -21,31 +21,49 @@
 #include <vector>
 #include <numbers>
 
-cv::Matx33d pyr2R(double pitch, double yaw, double roll) {
-  // Convert degrees to radians
-  pitch = pitch / 180.0 * std::numbers::pi;
-  yaw = yaw / 180.0 * std::numbers::pi;
-  roll = roll / 180.0 * std::numbers::pi;
+cv::Matx33d ypr2R(const cv::Vec3d& ypr) {
+  auto y = ypr(0) / 180.0 * M_PI;
+  auto p = ypr(1) / 180.0 * M_PI;
+  auto r = ypr(2) / 180.0 * M_PI;
 
-  double cy = cos(yaw), sy = sin(yaw);
-  double cp = cos(pitch), sp = sin(pitch);
-  double cr = cos(roll), sr = sin(roll);
+  cv::Matx33d Rz(cos(y), -sin(y), 0,
+                 sin(y), cos(y), 0,
+                 0, 0, 1);
 
-  cv::Matx33d R;
-  R(0, 0) = cy * cp;
-  R(0, 1) = cy * sp * sr - sy * cr;
-  R(0, 2) = cy * sp * cr + sy * sr;
+  cv::Matx33d Ry(cos(p), 0., sin(p),
+                 0., 1., 0.,
+                 -sin(p), 0., cos(p));
 
-  R(1, 0) = sy * cp;
-  R(1, 1) = sy * sp * sr + cy * cr;
-  R(1, 2) = sy * sp * cr - cy * sr;
+  cv::Matx33d Rx(1., 0., 0.,
+                 0., cos(r), -sin(r),
+                 0., sin(r), cos(r));
 
-  R(2, 0) = -sp;
-  R(2, 1) = cp * sr;
-  R(2, 2) = cp * cr;
-
-  return R;
+  return Rz * Ry * Rx;
 }
+
+cv::Matx33d ypr2R(double y, double p, double r) {
+  return ypr2R(cv::Vec3d(y, p, r));
+}
+
+cv::Vec3d R2ypr(const cv::Matx33d& R) {
+  cv::Vec3d n(R(0, 0), R(1, 0), R(2, 0));
+  cv::Vec3d o(R(0, 1), R(1, 1), R(2, 1));
+  cv::Vec3d a(R(0, 2), R(1, 2), R(2, 2));
+
+  cv::Vec3d ypr;
+  double y = atan2(n(1), n(0));
+  double p = atan2(-n(2), n(0) * cos(y) + n(1) * sin(y));
+  double r = atan2(a(0) * sin(y) - a(1) * cos(y),
+                   -o(0) * sin(y) + o(1) * cos(y));
+
+  ypr(0) = y;
+  ypr(1) = p;
+  ypr(2) = r;
+
+  return ypr / M_PI * 180.0;
+}
+
+
 
 cv::Mat ChessboardCalibrator::i420_to_rgb(const std::string& yuv_path, int h,
                                           int w) {
@@ -104,29 +122,27 @@ ChessboardCalibrator::CalibResult ChessboardCalibrator::chessboard_detect(
     std::cerr << "SolvePnP failed." << std::endl;
   }
 
-  cv::Mat R;
+  cv::Matx33d R;
   cv::Rodrigues(rvec, R);
 
-  double pitch = std::atan2(-R.at<double>(2, 0),
-                            std::sqrt(std::pow(R.at<double>(2, 1), 2) +
-                                      std::pow(R.at<double>(2, 2), 2))) *
-                 180.0 / CV_PI;
-  double yaw =
-      std::atan2(R.at<double>(1, 0), R.at<double>(0, 0)) * 180.0 / CV_PI;
-  double roll =
-      std::atan2(R.at<double>(2, 1), R.at<double>(2, 2)) * 180.0 / CV_PI;
-  res.angle_degrees = cv::Vec3d(pitch, yaw, roll);
+  cv::Vec3d n(R(0, 0), R(1, 0), R(2, 0));
+  cv::Vec3d o(R(0, 1), R(1, 1), R(2, 1));
+  cv::Vec3d a(R(0, 2), R(1, 2), R(2, 2));
+
+  auto ypr = R2ypr(R);
+
+  res.angle_degrees = ypr;
   res.success = true;
   return res;
 }
 
 cv::Mat ChessboardCalibrator::get_warped_image(
     const ChessboardCalibrator::CalibResult& calib_res) const {
-  auto pyr = calib_res.angle_degrees;
+  auto ypr = calib_res.angle_degrees;
   auto h = rgb_.rows;
   auto w = rgb_.cols;
   cv::Mat warped;
-  auto R = pyr2R(pyr[0], pyr[1], pyr[2]);
+  auto R = ypr2R(ypr);
   auto H = K_ * R.inv() * K_.inv();
   cv::warpPerspective(rgb_, warped, H, cv::Size(w, h));
   return warped;

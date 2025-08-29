@@ -54,4 +54,7 @@ private:
   cv::Vec<double, 8> dist_;
 };
 
-cv::Matx33d pyr2R(double pitch, double yaw, double roll);
+cv::Matx33d ypr2R(double pitch, double yaw, double roll);
+cv::Matx33d ypr2R(const cv::Vec3d& ypr);
+
+cv::Vec3d R2ypr(const cv::Matx33d& R);

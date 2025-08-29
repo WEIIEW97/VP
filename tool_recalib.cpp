@@ -95,9 +95,9 @@ int main(int argc, char** argv) {
                              image_width, pattern_size, square_size);
   if (calib_result.success) {
     cout << "Rotation angle (degrees): " << "\n"
-         << "Around X: " << calib_result.angle_degrees[0] << "\n"
-         << "Around Z: " << calib_result.angle_degrees[1] << "\n"
-         << "Around Y: " << calib_result.angle_degrees[2] << endl;
+         << "Around Z: " << calib_result.angle_degrees[0] << "\n"
+         << "Around Y: " << calib_result.angle_degrees[1] << "\n"
+         << "Around X: " << calib_result.angle_degrees[2] << endl;
   } else {
     cerr << "Failed to detect rotation angles, please check your "
             "conditions manually!"

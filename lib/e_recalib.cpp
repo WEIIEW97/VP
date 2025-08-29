@@ -50,11 +50,11 @@ RecalibInfo recalib(const string& input_path, const string& intrinsic_path,
 }
 
 cv::Mat adjust(const RecalibInfo& info, const cv::Mat& im) {
-  auto pyr = info.angle_degrees;
+  auto ypr = info.angle_degrees;
   auto h = im.rows;
   auto w = im.cols;
 
-  auto R = pyr2R(pyr[0], pyr[1], pyr[2]);
+  auto R = ypr2R(ypr);
   auto H = info.K * R.inv() * info.K.inv();
 
   cv::Mat warped;
