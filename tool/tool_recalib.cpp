@@ -25,24 +25,81 @@ using json = nlohmann::json;
 using namespace std;
 namespace po = boost::program_options;
 
+struct CameraParams {
+  cv::Mat K;
+  cv::Mat distCoef;
+  bool isFisheye;
+};
+
+CameraParams load_yaml(const std::string& yaml_path) {
+  cv::FileStorage fs(yaml_path, cv::FileStorage::READ);
+  if (!fs.isOpened()) {
+    throw std::runtime_error("Cannot open YAML file: " + yaml_path);
+  }
+
+  std::string model_type;
+  fs["model_type"] >> model_type;
+
+  CameraParams params;
+
+  if (model_type == "PINHOLE_FULL") {
+    double fx, fy, cx, cy;
+    fx = (double)fs["projection_parameters"]["fx"];
+    fy = (double)fs["projection_parameters"]["fy"];
+    cx = (double)fs["projection_parameters"]["cx"];
+    cy = (double)fs["projection_parameters"]["cy"];
+
+    params.K = (cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1);
+
+    std::vector<double> dist;
+    for (const auto& key : {"k1", "k2", "p1", "p2", "k3", "k4", "k5", "k6"}) {
+      dist.push_back((double)fs["distortion_parameters"][key]);
+    }
+    params.distCoef = cv::Mat(dist).clone().reshape(1, (int)dist.size());
+    params.isFisheye = false;
+  } else if (model_type == "KANNALA_BRANDT") {
+    double mu, mv, u0, v0;
+    mu = (double)fs["projection_parameters"]["mu"];
+    mv = (double)fs["projection_parameters"]["mv"];
+    u0 = (double)fs["projection_parameters"]["u0"];
+    v0 = (double)fs["projection_parameters"]["v0"];
+
+    params.K = (cv::Mat_<double>(3, 3) << mu, 0, u0, 0, mv, v0, 0, 0, 1);
+
+    std::vector<double> dist;
+    for (const auto& key : {"k2", "k3", "k4", "k5"}) {
+      dist.push_back((double)fs["projection_parameters"][key]);
+    }
+    params.distCoef = cv::Mat(dist).clone().reshape(1, (int)dist.size());
+    params.isFisheye = true;
+  } else {
+    throw std::runtime_error("Unsupported model type: " + model_type);
+  }
+
+  fs.release();
+  return params;
+}
+
 ChessboardCalibrator::CalibResult
 psycho(const string& input_path, const string& intrinsic_path,
        int image_height = 1080, int image_width = 1920,
        const cv::Size& pattern_size = cv::Size(6, 3),
        float square_size = 0.025) {
-  auto intrinsic = read_json(intrinsic_path);
-  cv::Matx33d K(intrinsic["cam_intrinsic"][0], intrinsic["cam_intrinsic"][1],
-                intrinsic["cam_intrinsic"][2], intrinsic["cam_intrinsic"][3],
-                intrinsic["cam_intrinsic"][4], intrinsic["cam_intrinsic"][5],
-                intrinsic["cam_intrinsic"][6], intrinsic["cam_intrinsic"][7],
-                intrinsic["cam_intrinsic"][8]);
-  cv::Vec<double, 8> dist(
-      intrinsic["cam_distcoeffs"][0], intrinsic["cam_distcoeffs"][1],
-      intrinsic["cam_distcoeffs"][2], intrinsic["cam_distcoeffs"][3],
-      intrinsic["cam_distcoeffs"][4], intrinsic["cam_distcoeffs"][5],
-      intrinsic["cam_distcoeffs"][6], intrinsic["cam_distcoeffs"][7]);
+  // auto intrinsic = read_json(intrinsic_path);
+  // cv::Matx33d K(intrinsic["cam_intrinsic"][0], intrinsic["cam_intrinsic"][1],
+  //               intrinsic["cam_intrinsic"][2], intrinsic["cam_intrinsic"][3],
+  //               intrinsic["cam_intrinsic"][4], intrinsic["cam_intrinsic"][5],
+  //               intrinsic["cam_intrinsic"][6], intrinsic["cam_intrinsic"][7],
+  //               intrinsic["cam_intrinsic"][8]);
+  // cv::Vec<double, 8> dist(
+  //     intrinsic["cam_distcoeffs"][0], intrinsic["cam_distcoeffs"][1],
+  //     intrinsic["cam_distcoeffs"][2], intrinsic["cam_distcoeffs"][3],
+  //     intrinsic["cam_distcoeffs"][4], intrinsic["cam_distcoeffs"][5],
+  //     intrinsic["cam_distcoeffs"][6], intrinsic["cam_distcoeffs"][7]);
 
-  auto calibrator = ChessboardCalibrator(K, dist);
+  auto cam_params = load_yaml(intrinsic_path);
+
+  auto calibrator = ChessboardCalibrator(cam_params.K, cam_params.distCoef);
   auto res = calibrator.detect(input_path, image_height, image_width,
                                pattern_size, square_size);
   if (!res.success) {

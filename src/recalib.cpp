@@ -21,22 +21,27 @@
 #include <vector>
 #include <numbers>
 
+bool FisheyeSolvePnP(cv::InputArray opoints, cv::InputArray ipoints,
+                     cv::InputArray cameraMatrix, cv::InputArray distCoeffs,
+                     cv::OutputArray rvec, cv::OutputArray tvec) {
+
+  cv::Mat imagePointsNormalized;
+  cv::fisheye::undistortPoints(ipoints, imagePointsNormalized, cameraMatrix,
+                               distCoeffs, cv::noArray());
+  return cv::solvePnP(opoints, imagePointsNormalized, cameraMatrix,
+                      cv::noArray(), rvec, tvec);
+}
+
 cv::Matx33d ypr2R(const cv::Vec3d& ypr) {
   auto y = ypr(0) / 180.0 * M_PI;
   auto p = ypr(1) / 180.0 * M_PI;
   auto r = ypr(2) / 180.0 * M_PI;
 
-  cv::Matx33d Rz(cos(y), -sin(y), 0,
-                 sin(y), cos(y), 0,
-                 0, 0, 1);
+  cv::Matx33d Rz(cos(y), -sin(y), 0, sin(y), cos(y), 0, 0, 0, 1);
 
-  cv::Matx33d Ry(cos(p), 0., sin(p),
-                 0., 1., 0.,
-                 -sin(p), 0., cos(p));
+  cv::Matx33d Ry(cos(p), 0., sin(p), 0., 1., 0., -sin(p), 0., cos(p));
 
-  cv::Matx33d Rx(1., 0., 0.,
-                 0., cos(r), -sin(r),
-                 0., sin(r), cos(r));
+  cv::Matx33d Rx(1., 0., 0., 0., cos(r), -sin(r), 0., sin(r), cos(r));
 
   return Rz * Ry * Rx;
 }
@@ -53,8 +58,8 @@ cv::Vec3d R2ypr(const cv::Matx33d& R) {
   cv::Vec3d ypr;
   double y = atan2(n(1), n(0));
   double p = atan2(-n(2), n(0) * cos(y) + n(1) * sin(y));
-  double r = atan2(a(0) * sin(y) - a(1) * cos(y),
-                   -o(0) * sin(y) + o(1) * cos(y));
+  double r =
+      atan2(a(0) * sin(y) - a(1) * cos(y), -o(0) * sin(y) + o(1) * cos(y));
 
   ypr(0) = y;
   ypr(1) = p;
@@ -62,8 +67,6 @@ cv::Vec3d R2ypr(const cv::Matx33d& R) {
 
   return ypr / M_PI * 180.0;
 }
-
-
 
 cv::Mat ChessboardCalibrator::i420_to_rgb(const std::string& yuv_path, int h,
                                           int w) {
@@ -89,8 +92,10 @@ cv::Mat ChessboardCalibrator::i420_to_rgb(const std::string& yuv_path, int h,
   return rgb;
 }
 
-ChessboardCalibrator::CalibResult ChessboardCalibrator::chessboard_detect(
-    const cv::Mat& rgb, const cv::Size& pattern_size, float square_size) {
+ChessboardCalibrator::CalibResult
+ChessboardCalibrator::chessboard_detect(const cv::Mat& rgb,
+                                        const cv::Size& pattern_size,
+                                        float square_size, bool is_fisheye) {
   ChessboardCalibrator::CalibResult res;
 
   cv::Mat gray;
@@ -116,8 +121,13 @@ ChessboardCalibrator::CalibResult ChessboardCalibrator::chessboard_detect(
   cv::cornerSubPix(gray, corners, cv::Size(11, 11), cv::Size(-1, -1), criteria);
 
   cv::Mat rvec, tvec;
-  bool pnp_success =
-      cv::solvePnP(objp, corners, K_, cv::Mat(dist_), rvec, tvec);
+  bool pnp_success = false;
+  if (is_fisheye) {
+    pnp_success =
+        FisheyeSolvePnP(objp, corners, K_, cv::Mat(dist_), rvec, tvec);
+  } else {
+    pnp_success = cv::solvePnP(objp, corners, K_, cv::Mat(dist_), rvec, tvec);
+  }
   if (!pnp_success) {
     std::cerr << "SolvePnP failed." << std::endl;
   }
@@ -152,7 +162,8 @@ cv::Mat ChessboardCalibrator::get_rgb_image() const { return rgb_; }
 
 ChessboardCalibrator::CalibResult
 ChessboardCalibrator::detect(const std::string& file_path, int h, int w,
-                             const cv::Size& pattern_size, float square_size) {
+                             const cv::Size& pattern_size, float square_size,
+                             bool is_fisheye) {
   // whether file_path ends with ".yuv" or image file extension
   cv::Mat rgb;
   if (file_path.ends_with(".yuv")) {
@@ -162,5 +173,5 @@ ChessboardCalibrator::detect(const std::string& file_path, int h, int w,
     cv::cvtColor(rgb, rgb, cv::COLOR_BGR2RGB);
     rgb_ = rgb.clone();
   }
-  return chessboard_detect(rgb, pattern_size, square_size);
+  return chessboard_detect(rgb, pattern_size, square_size, is_fisheye);
 }

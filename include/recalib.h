@@ -37,7 +37,7 @@ public:
 
   CalibResult detect(const std::string& file_path, int h, int w,
                      const cv::Size& pattern_size = cv::Size(8, 5),
-                     float square_size = 0.025);
+                     float square_size = 0.025, bool is_fisheye = false);
 
   cv::Mat get_warped_image(const CalibResult& calib_res) const;
   cv::Mat get_rgb_image() const;
@@ -46,7 +46,7 @@ private:
   cv::Mat i420_to_rgb(const std::string& yuv_path, int h, int w);
   CalibResult chessboard_detect(const cv::Mat& rgb,
                                 const cv::Size& pattern_size,
-                                float square_size);
+                                float square_size, bool is_fisheye);
   
 private:
   cv::Mat rgb_;
