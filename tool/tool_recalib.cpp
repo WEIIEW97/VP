@@ -27,8 +27,8 @@ namespace po = boost::program_options;
 
 struct CameraParams {
   cv::Mat K;
-  cv::Mat distCoef;
-  bool isFisheye;
+  cv::Mat dist_coef;
+  bool is_fisheye;
 };
 
 CameraParams load_yaml(const std::string& yaml_path) {
@@ -55,8 +55,8 @@ CameraParams load_yaml(const std::string& yaml_path) {
     for (const auto& key : {"k1", "k2", "p1", "p2", "k3", "k4", "k5", "k6"}) {
       dist.push_back((double)fs["distortion_parameters"][key]);
     }
-    params.distCoef = cv::Mat(dist).clone().reshape(1, (int)dist.size());
-    params.isFisheye = false;
+    params.dist_coef = cv::Mat(dist).clone().reshape(1, (int)dist.size());
+    params.is_fisheye = false;
   } else if (model_type == "KANNALA_BRANDT") {
     double mu, mv, u0, v0;
     mu = (double)fs["projection_parameters"]["mu"];
@@ -70,8 +70,8 @@ CameraParams load_yaml(const std::string& yaml_path) {
     for (const auto& key : {"k2", "k3", "k4", "k5"}) {
       dist.push_back((double)fs["projection_parameters"][key]);
     }
-    params.distCoef = cv::Mat(dist).clone().reshape(1, (int)dist.size());
-    params.isFisheye = true;
+    params.dist_coef = cv::Mat(dist).clone().reshape(1, (int)dist.size());
+    params.is_fisheye = true;
   } else {
     throw std::runtime_error("Unsupported model type: " + model_type);
   }
@@ -99,9 +99,10 @@ psycho(const string& input_path, const string& intrinsic_path,
 
   auto cam_params = load_yaml(intrinsic_path);
 
-  auto calibrator = ChessboardCalibrator(cam_params.K, cam_params.distCoef);
-  auto res = calibrator.detect(input_path, image_height, image_width,
-                               pattern_size, square_size);
+  auto calibrator = ChessboardCalibrator(cam_params.K, cam_params.dist_coef);
+  auto res =
+      calibrator.detect(input_path, image_height, image_width, pattern_size,
+                        square_size, cam_params.is_fisheye);
   if (!res.success) {
     std::cerr << "Calibration failed!" << std::endl;
     return {false,
