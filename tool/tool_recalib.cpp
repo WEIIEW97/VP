@@ -17,6 +17,7 @@
 #include "recalib.h"
 #include <string>
 #include <iostream>
+#include "../src/json.h"
 #include <boost/program_options.hpp>
 #include <limits>
 
@@ -77,13 +78,38 @@ CameraParams load_yaml(const std::string& yaml_path) {
   return params;
 }
 
+CameraParams load_json(const std::string& json_path) {
+  auto intrinsic = read_json(json_path);
+  cv::Matx33d K(intrinsic["cam_intrinsic"][0], intrinsic["cam_intrinsic"][1],
+                intrinsic["cam_intrinsic"][2], intrinsic["cam_intrinsic"][3],
+                intrinsic["cam_intrinsic"][4], intrinsic["cam_intrinsic"][5],
+                intrinsic["cam_intrinsic"][6], intrinsic["cam_intrinsic"][7],
+                intrinsic["cam_intrinsic"][8]);
+  cv::Vec<double, 8> dist(
+      intrinsic["cam_distcoeffs"][0], intrinsic["cam_distcoeffs"][1],
+      intrinsic["cam_distcoeffs"][2], intrinsic["cam_distcoeffs"][3],
+      intrinsic["cam_distcoeffs"][4], intrinsic["cam_distcoeffs"][5],
+      intrinsic["cam_distcoeffs"][6], intrinsic["cam_distcoeffs"][7]);
+
+  // if intrinsic has "model_type" field, then we can determine if it's fisheye
+  bool is_fisheye = false;
+  if (intrinsic.contains("model_type")) {
+    std::string model_type = intrinsic["model_type"];
+    if (model_type == "KANNALA_BRANDT") {
+      is_fisheye = true;
+    }
+  }
+  return {cv::Mat(K), dist, is_fisheye};
+}
+
 ChessboardCalibrator::CalibResult
 psycho(const string& input_path, const string& intrinsic_path,
        int image_height = 1080, int image_width = 1920,
        const cv::Size& pattern_size = cv::Size(6, 3),
-       float square_size = 0.025) {
+       float square_size = 0.08) {
 
-  auto cam_params = load_yaml(intrinsic_path);
+  // auto cam_params = load_yaml(intrinsic_path);
+  auto cam_params = load_json(intrinsic_path);
 
   auto calibrator = ChessboardCalibrator(cam_params.K, cam_params.dist_coef);
   auto res =
@@ -111,7 +137,7 @@ int main(int argc, char** argv) {
       "input,i", po::value<std::string>(&input_path)->required(),
       "Path to input .yuv or .png/.jpg.. file")(
       "intrinsic,k", po::value<std::string>(&intrinsic_path)->required(),
-      "Path to intrinsic YAML file")(
+      "Path to intrinsic JSON file")(
       "height,h", po::value<int>(&image_height)->default_value(1080),
       "Image height")(
       "width,w", po::value<int>(&image_width)->default_value(1920),
