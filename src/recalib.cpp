@@ -28,14 +28,14 @@ bool FisheyeSolvePnP(cv::InputArray opoints, cv::InputArray ipoints,
   cv::Mat imagePointsNormalized;
   cv::fisheye::undistortPoints(ipoints, imagePointsNormalized, cameraMatrix,
                                distCoeffs, cv::noArray());
-  return cv::solvePnP(opoints, imagePointsNormalized, cameraMatrix,
+  return cv::solvePnP(opoints, imagePointsNormalized, cv::Matx33d::eye(),
                       cv::noArray(), rvec, tvec);
 }
 
 cv::Matx33d ypr2R(const cv::Vec3d& ypr) {
-  auto y = ypr(0) / 180.0 * M_PI;
-  auto p = ypr(1) / 180.0 * M_PI;
-  auto r = ypr(2) / 180.0 * M_PI;
+  auto y = ypr(0) / 180.0 * std::numbers::pi;
+  auto p = ypr(1) / 180.0 * std::numbers::pi;
+  auto r = ypr(2) / 180.0 * std::numbers::pi;
 
   cv::Matx33d Rz(cos(y), -sin(y), 0, sin(y), cos(y), 0, 0, 0, 1);
 
@@ -65,7 +65,7 @@ cv::Vec3d R2ypr(const cv::Matx33d& R) {
   ypr(1) = p;
   ypr(2) = r;
 
-  return ypr / M_PI * 180.0;
+  return ypr / std::numbers::pi * 180.0;
 }
 
 cv::Mat ChessboardCalibrator::i420_to_rgb(const std::string& yuv_path, int h,
@@ -123,8 +123,10 @@ ChessboardCalibrator::chessboard_detect(const cv::Mat& rgb,
   cv::Mat rvec, tvec;
   bool pnp_success = false;
   if (is_fisheye) {
+    // take the first 4 dist coeffs in dist_ for fisheye model
+    cv::Vec<double, 4> fisheye_dist(dist_[0], dist_[1], dist_[2], dist_[3]);
     pnp_success =
-        FisheyeSolvePnP(objp, corners, K_, cv::Mat(dist_), rvec, tvec);
+        FisheyeSolvePnP(objp, corners, K_, fisheye_dist, rvec, tvec);
   } else {
     pnp_success = cv::solvePnP(objp, corners, K_, cv::Mat(dist_), rvec, tvec);
   }

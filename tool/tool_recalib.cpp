@@ -27,7 +27,7 @@ namespace po = boost::program_options;
 
 struct CameraParams {
   cv::Mat K;
-  cv::Mat dist_coef;
+  cv::Vec<double, 8> dist_coef = cv::Vec<double, 8>::all(0);
   bool is_fisheye;
 };
 
@@ -51,11 +51,10 @@ CameraParams load_yaml(const std::string& yaml_path) {
 
     params.K = (cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1);
 
-    std::vector<double> dist;
+    int idx=0;
     for (const auto& key : {"k1", "k2", "p1", "p2", "k3", "k4", "k5", "k6"}) {
-      dist.push_back((double)fs["distortion_parameters"][key]);
+      params.dist_coef[idx++] = (double)fs["distortion_parameters"][key];
     }
-    params.dist_coef = cv::Mat(dist).clone().reshape(1, (int)dist.size());
     params.is_fisheye = false;
   } else if (model_type == "KANNALA_BRANDT") {
     double mu, mv, u0, v0;
@@ -66,16 +65,14 @@ CameraParams load_yaml(const std::string& yaml_path) {
 
     params.K = (cv::Mat_<double>(3, 3) << mu, 0, u0, 0, mv, v0, 0, 0, 1);
 
-    std::vector<double> dist;
+    int idx = 0;
     for (const auto& key : {"k2", "k3", "k4", "k5"}) {
-      dist.push_back((double)fs["projection_parameters"][key]);
+      params.dist_coef[idx++] = (double)fs["projection_parameters"][key];
     }
-    params.dist_coef = cv::Mat(dist).clone().reshape(1, (int)dist.size());
     params.is_fisheye = true;
   } else {
     throw std::runtime_error("Unsupported model type: " + model_type);
   }
-
   fs.release();
   return params;
 }
