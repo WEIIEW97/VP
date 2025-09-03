@@ -17,11 +17,9 @@
 #include "recalib.h"
 #include <string>
 #include <iostream>
-#include "../src/json.h"
 #include <boost/program_options.hpp>
 #include <limits>
 
-using json = nlohmann::json;
 using namespace std;
 namespace po = boost::program_options;
 
@@ -44,30 +42,32 @@ CameraParams load_yaml(const std::string& yaml_path) {
 
   if (model_type == "PINHOLE_FULL") {
     double fx, fy, cx, cy;
-    fx = (double)fs["projection_parameters"]["fx"];
-    fy = (double)fs["projection_parameters"]["fy"];
-    cx = (double)fs["projection_parameters"]["cx"];
-    cy = (double)fs["projection_parameters"]["cy"];
+    fx = static_cast<double>(fs["projection_parameters"]["fx"]);
+    fy = static_cast<double>(fs["projection_parameters"]["fy"]);
+    cx = static_cast<double>(fs["projection_parameters"]["cx"]);
+    cy = static_cast<double>(fs["projection_parameters"]["cy"]);
 
     params.K = (cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1);
 
-    int idx=0;
+    int idx = 0;
     for (const auto& key : {"k1", "k2", "p1", "p2", "k3", "k4", "k5", "k6"}) {
-      params.dist_coef[idx++] = (double)fs["distortion_parameters"][key];
+      params.dist_coef[idx++] =
+          static_cast<double>(fs["distortion_parameters"][key]);
     }
     params.is_fisheye = false;
   } else if (model_type == "KANNALA_BRANDT") {
     double mu, mv, u0, v0;
-    mu = (double)fs["projection_parameters"]["mu"];
-    mv = (double)fs["projection_parameters"]["mv"];
-    u0 = (double)fs["projection_parameters"]["u0"];
-    v0 = (double)fs["projection_parameters"]["v0"];
+    mu = static_cast<double>(fs["projection_parameters"]["mu"]);
+    mv = static_cast<double>(fs["projection_parameters"]["mv"]);
+    u0 = static_cast<double>(fs["projection_parameters"]["u0"]);
+    v0 = static_cast<double>(fs["projection_parameters"]["v0"]);
 
     params.K = (cv::Mat_<double>(3, 3) << mu, 0, u0, 0, mv, v0, 0, 0, 1);
 
     int idx = 0;
     for (const auto& key : {"k2", "k3", "k4", "k5"}) {
-      params.dist_coef[idx++] = (double)fs["projection_parameters"][key];
+      params.dist_coef[idx++] =
+          static_cast<double>(fs["projection_parameters"][key]);
     }
     params.is_fisheye = true;
   } else {
@@ -82,17 +82,6 @@ psycho(const string& input_path, const string& intrinsic_path,
        int image_height = 1080, int image_width = 1920,
        const cv::Size& pattern_size = cv::Size(6, 3),
        float square_size = 0.025) {
-  // auto intrinsic = read_json(intrinsic_path);
-  // cv::Matx33d K(intrinsic["cam_intrinsic"][0], intrinsic["cam_intrinsic"][1],
-  //               intrinsic["cam_intrinsic"][2], intrinsic["cam_intrinsic"][3],
-  //               intrinsic["cam_intrinsic"][4], intrinsic["cam_intrinsic"][5],
-  //               intrinsic["cam_intrinsic"][6], intrinsic["cam_intrinsic"][7],
-  //               intrinsic["cam_intrinsic"][8]);
-  // cv::Vec<double, 8> dist(
-  //     intrinsic["cam_distcoeffs"][0], intrinsic["cam_distcoeffs"][1],
-  //     intrinsic["cam_distcoeffs"][2], intrinsic["cam_distcoeffs"][3],
-  //     intrinsic["cam_distcoeffs"][4], intrinsic["cam_distcoeffs"][5],
-  //     intrinsic["cam_distcoeffs"][6], intrinsic["cam_distcoeffs"][7]);
 
   auto cam_params = load_yaml(intrinsic_path);
 
@@ -122,7 +111,7 @@ int main(int argc, char** argv) {
       "input,i", po::value<std::string>(&input_path)->required(),
       "Path to input .yuv or .png/.jpg.. file")(
       "intrinsic,k", po::value<std::string>(&intrinsic_path)->required(),
-      "Path to intrinsic JSON file")(
+      "Path to intrinsic YAML file")(
       "height,h", po::value<int>(&image_height)->default_value(1080),
       "Image height")(
       "width,w", po::value<int>(&image_width)->default_value(1920),
@@ -134,8 +123,8 @@ int main(int argc, char** argv) {
       po::value<int>()->default_value(6)->notifier(
           [&](int v) { pattern_size.width = v; }),
       "Number of inner corners per chessboard column")(
-      "square_size,s", po::value<float>(&square_size)->default_value(0.025f),
-      "Size of a square in your defined unit (point, millimeter,etc.)");
+      "square_size,s", po::value<float>(&square_size)->default_value(0.08f),
+      "Size of a square in your defined unit (point, meter,etc.)");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);

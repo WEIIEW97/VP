@@ -108,7 +108,7 @@ def convert_yuv_to_rgb(yuv_path: str, h: int, w: int):
 
 
 def chessboard_detect(
-    rgb, K, dist_coef, pattern_size=(8, 5), square_size=0.025, is_fisheye=False
+    rgb, K, dist_coef, pattern_size=(8, 5), square_size=0.08, is_fisheye=False
 ):
     """
     Detect chessboard and estimate its 3D pose using solvePnP
@@ -317,8 +317,6 @@ def main():
     # retrieve all directories in root_dir if begin with "abonr"
     dirs = [d for d in Path(root_dir).iterdir() if d.is_dir()]
     for dir in dirs:
-        if str(dir.name) != "middle-1":
-            continue
         intri_path = Path(root_dir) / dir.name / "calib_results" / "RGB.yaml"
         K, dist_coef, flag_is_fisheye = load_yaml(str(intri_path))
 
