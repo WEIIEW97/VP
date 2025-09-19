@@ -108,8 +108,8 @@ psycho(const string& input_path, const string& intrinsic_path,
        const cv::Size& pattern_size = cv::Size(6, 3),
        float square_size = 0.08) {
 
-  // auto cam_params = load_yaml(intrinsic_path);
-  auto cam_params = load_json(intrinsic_path);
+   auto cam_params = load_yaml(intrinsic_path);
+//  auto cam_params = load_json(intrinsic_path);
 
   auto calibrator = ChessboardCalibrator(cam_params.K, cam_params.dist_coef);
   auto res =

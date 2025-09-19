@@ -125,8 +125,7 @@ ChessboardCalibrator::chessboard_detect(const cv::Mat& rgb,
   if (is_fisheye) {
     // take the first 4 dist coeffs in dist_ for fisheye model
     cv::Vec<double, 4> fisheye_dist(dist_[0], dist_[1], dist_[2], dist_[3]);
-    pnp_success =
-        FisheyeSolvePnP(objp, corners, K_, fisheye_dist, rvec, tvec);
+    pnp_success = FisheyeSolvePnP(objp, corners, K_, fisheye_dist, rvec, tvec);
   } else {
     pnp_success = cv::solvePnP(objp, corners, K_, cv::Mat(dist_), rvec, tvec);
   }
@@ -136,10 +135,6 @@ ChessboardCalibrator::chessboard_detect(const cv::Mat& rgb,
 
   cv::Matx33d R;
   cv::Rodrigues(rvec, R);
-
-  cv::Vec3d n(R(0, 0), R(1, 0), R(2, 0));
-  cv::Vec3d o(R(0, 1), R(1, 1), R(2, 1));
-  cv::Vec3d a(R(0, 2), R(1, 2), R(2, 2));
 
   auto ypr = R2ypr(R);
 
