@@ -3,13 +3,14 @@ import shlex
 import subprocess
 from pathlib import Path
 
+import json as _json
+
 
 def run(cmd: str):
     subprocess.check_call(cmd, shell=True)
 
 
 def read_first_imu_timestamp(imu_path: Path) -> float:
-    import json as _json
     with imu_path.open("r") as f:
         for line in f:
             s = line.strip()
@@ -34,6 +35,62 @@ def read_first_imu_timestamp(imu_path: Path) -> float:
             except Exception:
                 continue
     raise RuntimeError(f"No IMU timestamp found in {imu_path}")
+
+
+def scan_imu_duplicates(imu_path: Path) -> dict[int, int]:
+    """
+    Single-pass scan of IMU file; returns a dict of duplicate timestamps -> counts (>1).
+
+    Supports two line formats:
+    - JSON per line containing key "timestamp" (treated as microseconds if >= 1e9, else seconds)
+    - Space-separated where the first token is the timestamp (seconds or microseconds)
+
+    Timestamps are normalized to integer microseconds for robust equality checks.
+    """
+
+    def _normalize_to_microseconds(ts_value: float) -> int:
+        tsf = float(ts_value)
+        if tsf >= 1e9:
+            return int(round(tsf))
+        return int(round(tsf * 1_000_000.0))
+
+    counts: dict[int, int] = {}
+    with imu_path.open("r") as f:
+        for line in f:
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            # Try JSON first
+            try:
+                obj = _json.loads(s)
+                ts = obj.get("timestamp", None)
+                if ts is None:
+                    continue
+                micro = _normalize_to_microseconds(ts)
+            except Exception:
+                # Fallback: first token as timestamp
+                parts = s.split()
+                if not parts:
+                    continue
+                try:
+                    t = float(parts[0])
+                except Exception:
+                    continue
+                micro = _normalize_to_microseconds(t)
+
+            counts[micro] = counts.get(micro, 0) + 1
+
+    return {ts: c for ts, c in counts.items() if c > 1}
+
+
+def check_imu_duplicate_timestamps(imu_path: Path) -> bool:
+    """Compatibility wrapper: returns True if any duplicates exist (uses single-pass scan)."""
+    return bool(scan_imu_duplicates(imu_path))
+
+
+def find_duplicate_imu_timestamps(imu_path: Path) -> dict[int, int]:
+    """Compatibility wrapper: returns duplicates dict using single-pass scan."""
+    return scan_imu_duplicates(imu_path)
 
 
 def ensure_dir(p: Path):
@@ -73,7 +130,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--base",
-        default="/home/william/extdisk/data/motorEV/self-calib-analysis/slow-motion/",
+        default="/home/william/extdisk/data/motorEV/self-calib-analysis/indoor/",
         help="Base directory containing video, index, imu",
     )
     parser.add_argument(
@@ -88,13 +145,13 @@ def main():
     )
     parser.add_argument(
         "--start",
-        default=23.0,
+        default=94.0,
         type=float,
         help="Start seconds offset from first IMU timestamp",
     )
     parser.add_argument(
         "--end",
-        default=68.0,
+        default=143.0,
         type=float,
         help="End seconds offset from first IMU timestamp",
     )
@@ -187,6 +244,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-
-
+    # main()
+    imu_path = Path("/home/william/extdisk/data/motorEV/self-calib-analysis/indoor/ref1/imu.txt")
+    dupes = scan_imu_duplicates(imu_path)
+    if bool(dupes):
+        for micro_ts, count in sorted(dupes.items()):
+            sec = micro_ts // 1_000_000
+            usec = micro_ts % 1_000_000
+            print(f"{sec}.{usec:06d} -> {count} times")
+    else:
+        print("No duplicate timestamps.")
