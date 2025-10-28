@@ -1,14 +1,15 @@
-import cv2
-import numpy as np
-import math
 import json
+import math
+
+import cv2
 import matplotlib
+import numpy as np
 
 matplotlib.use("TkAgg")
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import yaml
-
-from pathlib import Path
 
 
 def ypr2r(ypr: np.ndarray | list):
@@ -119,7 +120,7 @@ def chessboard_detect(
         square_size: Size of one chessboard square in meters (for real-world scale)
 
     Returns:
-        angles: Rotation angles in degrees (pitch, yaw, roll)
+        angles: Rotation angles in degrees (yaw, pitch, roll)
         annotated_img: Image with detected corners and axis visualization
     """
     # Read image
@@ -137,10 +138,13 @@ def chessboard_detect(
     corners_found, corners = cv2.findChessboardCorners(
         gray,
         pattern_size,
-        flags=cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE,
+        flags=cv2.CALIB_CB_ADAPTIVE_THRESH
+        + cv2.CALIB_CB_NORMALIZE_IMAGE
+        + cv2.CALIB_CB_FAST_CHECK,
     )
 
     if not corners_found:
+        print("Chessboard corners not found.")
         return None, img
 
     # Refine corner locations
@@ -154,6 +158,7 @@ def chessboard_detect(
         success, rvec, tvec = cv2.solvePnP(objp, corners, K, dist_coef)
 
     if not success:
+        print("solvePnP failed.")
         return None, img
 
     # Convert rotation vector to rotation matrix
@@ -229,7 +234,6 @@ def recalib(im: np.ndarray, K: np.ndarray, rotation_angles: tuple, crop: bool = 
     Returns:
         Rotated image
     """
-    # K = np.array(intri["cam_intrinsic"]).reshape((3, 3))
     ypr = rotation_angles
 
     h, w = im.shape[:2]
@@ -250,77 +254,23 @@ def recalib(im: np.ndarray, K: np.ndarray, rotation_angles: tuple, crop: bool = 
         borderValue=(0, 0, 0),
     )
 
-    # add an option to crop the image with the maximum inner rectangle with the valid pixels(avoid black border after rotation)
-    if crop:
-        # max_rect = find_max_inscribed_rect(gray)
-        top, bottom, left, right = find_max_inner_rect(corrected_im)
-        # Crop the image to remove black borders
-        # [x, y, width, height]
-        cropped_im = corrected_im[top : bottom + 1, left : right + 1]
-        # Resize back to original dimensions
-        final_im = cv2.resize(cropped_im, (w, h), interpolation=cv2.INTER_LANCZOS4)
-        return final_im
-
     return corrected_im
 
 
-def max_rect_in_hist(hist):
-    stack = []
-    max_area = 0
-    max_rect = (0, 0, 0, 0)
-    n = len(hist)
-    for idx in range(n):
-        start = idx
-        while stack and stack[-1][1] > hist[idx]:
-            i, h = stack.pop()
-            area = h * (idx - i)
-            if area > max_area:
-                max_area = area
-                max_rect = (i, idx, h, area)
-            start = i
-        stack.append((start, hist[idx]))
-    while stack:
-        i, h = stack.pop()
-        area = h * (n - i)
-        if area > max_area:
-            max_area = area
-            max_rect = (i, n, h, area)
-    return max_rect
-
-
-def find_max_inner_rect(R):
-    binary = np.all(R != [0, 0, 0], axis=-1).astype(int)
-    H, W = binary.shape
-    dp = np.zeros((H, W), dtype=int)
-
-    for i in range(H):
-        for j in range(W):
-            if binary[i][j] == 1:
-                dp[i][j] = dp[i - 1][j] + 1 if i > 0 else 1
-            else:
-                dp[i][j] = 0
-    max_rect = (0, 0, 0, 0, 0)  # top, bottom, left, right, area
-    for i in range(H):
-        hist = dp[i]
-        left, right, height, area = max_rect_in_hist(hist)
-        if area > max_rect[4]:
-            top = i - height + 1
-            bottom = i
-            left = left
-            right = right - 1
-            max_rect = (top, bottom, left, right, area)
-    return max_rect[:4]
-
-
 def main():
-    root_dir = "/home/william/extdisk/data/calib/test_from_yf"
-    # retrieve all directories in root_dir if begin with "abonr"
+    root_dir = "/home/william/extdisk/data/calib/failed/20251028/"
     dirs = [d for d in Path(root_dir).iterdir() if d.is_dir()]
+    failed = 0
+    total = 0
+    success_files = []
     for dir in dirs:
-        if str(dir.name) != "middle-1":
-            continue
-        intri_path = Path(root_dir) / dir.name / "calib_results" / "RGB.yaml"
+        intri_path = Path(root_dir) / dir.name / "result" / "RGB.yaml"
         K, dist_coef, flag_is_fisheye = load_yaml(str(intri_path))
+        # intri_path = Path(root_dir).parent / "intrinsics" / f"intrinsics-{dir.name.replace("#", "")}.json"
+        # intri_data = load_json(str(intri_path))["camera_para"]
+        # K = np.array(intri_data["cam_intrinsic"], dtype=np.float32).reshape((3, 3))
+        # dist_coef = np.array(intri_data["cam_distcoeffs"], dtype=np.float32)
+        # flag_is_fisheye = False
 
         img_path = dir / "RGB"
         # find the .png file in img_path
@@ -329,11 +279,12 @@ def main():
         ]
         for img_file in img_files:
             print(f"Processing image: {img_file}, fish eye mode {flag_is_fisheye}")
-            recalib_file = str(img_file).replace(".png", "_recalib.png")
+            recalib_file = str(img_file).replace(".png", "_recalib.jpg")
             rgb = cv2.imread(str(img_file))
-
+            mask = np.zeros_like(rgb, dtype=np.uint8)
+            mask[314:932, 488:1366] = rgb[314:932, 488:1366]
             angles, img = chessboard_detect(
-                rgb,
+                mask,
                 K,
                 dist_coef,
                 pattern_size=(6, 3),
@@ -341,18 +292,75 @@ def main():
                 is_fisheye=flag_is_fisheye,
             )
             print(f"detect angle offset is: {angles}")
+            if angles is None:
+                failed += 1
+                total += 1
+                continue
+            if np.any(np.abs(angles) >= 1.5):
+                failed += 1
+                total += 1
+                print(f"Failed to detect chessboard in image: {img_file}")
+                print("Due to the threshold of 1.5 degrees")
+                continue
+            total += 1
+            success_files.append(str(img_file))
             corrected_im = recalib(img, K, angles, False)
             # cv2.imwrite(str(recalib_file), corrected_im)
             plt.figure()
             plt.imshow(corrected_im)
-            # plt.savefig(str(recalib_file))
+            plt.savefig(str(recalib_file))
             plt.axis("off")
             plt.tight_layout()
             plt.show()
 
     plt.close()
+    print(f"failed rate is {failed/total*100:.4f}%")
     print("done")
+
+    print(f"Passed files are: ")
+    for file in success_files:
+        print(file)
+
+
+def test_single():
+    img_path = "/home/william/extdisk/data/calib/failed/20251028/Z0CABLB25IRA0061#BA.04.00.0069.01-nodetection/RGB/recheck_image.png"
+    intri_path = "/home/william/extdisk/data/calib/failed/20251028/Z0CABLB25IRA0061#BA.04.00.0069.01-nodetection/result/RGB.yaml"
+    K, dist_coef, flag_is_fisheye = load_yaml(str(intri_path))
+    print(f"K is: {K}")
+    print(f"dist_coef is: {dist_coef}")
+    print(f"flag_is_fisheye is: {flag_is_fisheye}")
+    rgb = cv2.imread(str(img_path))
+    mask = np.zeros_like(rgb, dtype=np.uint8)
+    mask[314:832, 488:1366] = rgb[314:832, 488:1366]
+    angles, img = chessboard_detect(
+        mask,
+        K,
+        dist_coef,
+        pattern_size=(6, 3),
+        square_size=0.08,
+        is_fisheye=flag_is_fisheye,
+    )
+    plt.figure()
+    plt.imshow(img)
+    plt.axis("off")
+    plt.tight_layout()
+    plt.show()
+    print(f"detect angle offset is: {angles}")
+    if angles is None:
+        print("Failed to detect chessboard in image.")
+        return
+    if np.any(np.abs(angles) >= 1.5):
+        print("Exceed the offset threshold of 1.5 degrees.")
+        return
+    print(f"detect angle offset is: {angles}")
+    corrected_im = recalib(img, K, angles, False)
+    plt.figure()
+    plt.imshow(corrected_im)
+    plt.axis("off")
+    plt.tight_layout()
+    plt.show()
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    test_single()

@@ -110,7 +110,7 @@ ChessboardCalibrator::chessboard_detect(const cv::Mat& rgb,
   std::vector<cv::Point2f> corners;
   bool ret = cv::findChessboardCorners(gray, pattern_size, corners,
                                        cv::CALIB_CB_ADAPTIVE_THRESH |
-                                           cv::CALIB_CB_NORMALIZE_IMAGE);
+                                           cv::CALIB_CB_NORMALIZE_IMAGE | cv::CALIB_CB_FAST_CHECK);
   if (!ret) {
     std::cerr << "Chessboard detection failed." << std::endl;
     return res;
