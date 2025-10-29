@@ -108,6 +108,62 @@ def convert_yuv_to_rgb(yuv_path: str, h: int, w: int):
     return rgb
 
 
+def mask_aruco(im: np.ndarray, rois: np.ndarray):
+    """
+    Extract a bounding box from ArUco markers positioned at the edges of an image.
+    
+    Takes ROI bounding boxes and finds the innermost edges to create a rectangular mask.
+    Assumes 4 markers are positioned at left, right, top, and bottom edges.
+    
+    Args:
+        im: Input image (H, W) or (H, W, C)
+        rois: ROI corners with shape (N, 4, 2), where each ROI has 4 corner points
+        
+    Returns:
+        mask: Binary mask with the extracted region set to image values
+    """
+    mask = np.zeros_like(im, dtype=np.uint8)
+    
+    # Compute centers for all ROIs (average of 4 corner points)
+    centers = np.mean(rois, axis=1)
+    
+    # Identify ROI indices by position using centers
+    left_idx = np.argmin(centers[:, 0])      # leftmost center
+    right_idx = np.argmax(centers[:, 0])      # rightmost center
+    top_idx = np.argmin(centers[:, 1])       # topmost center
+    bottom_idx = np.argmax(centers[:, 1])     # bottommost center
+    
+    # Extract corner points from each marker
+    # Left marker: take rightmost x coordinate (innermost edge)
+    left_roi = rois[left_idx]
+    rightmost_x = np.max(left_roi[:, 0])
+    left_corner = np.array([rightmost_x, centers[left_idx, 1]])
+    
+    # Right marker: take leftmost x coordinate (innermost edge)
+    right_roi = rois[right_idx]
+    leftmost_x = np.min(right_roi[:, 0])
+    right_corner = np.array([leftmost_x, centers[right_idx, 1]])
+    
+    # Top marker: take bottommost y coordinate (innermost edge)
+    top_roi = rois[top_idx]
+    bottommost_y = np.max(top_roi[:, 1])
+    top_corner = np.array([centers[top_idx, 0], bottommost_y])
+    
+    # Bottom marker: take topmost y coordinate (innermost edge)
+    bottom_roi = rois[bottom_idx]
+    topmost_y = np.min(bottom_roi[:, 1])
+    bottom_corner = np.array([centers[bottom_idx, 0], topmost_y])
+    
+    # Compute bounding box from the four corner points
+    corners = np.array([left_corner, right_corner, top_corner, bottom_corner], dtype=np.int32)
+    x_min, y_min = np.min(corners, axis=0)
+    x_max, y_max = np.max(corners, axis=0)
+    
+    # Copy the region to the mask
+    mask[y_min:y_max, x_min:x_max] = im[y_min:y_max, x_min:x_max]
+    return mask
+
+
 def chessboard_detect(
     rgb, K, dist_coef, pattern_size=(8, 5), square_size=0.08, is_fisheye=False
 ):
@@ -257,7 +313,15 @@ def recalib(im: np.ndarray, K: np.ndarray, rotation_angles: tuple, crop: bool = 
     return corrected_im
 
 
-def main():
+rois = np.array([
+        [[1400.041, 739.371], [1401.901, 432.779], [1787.924, 435.121], [1786.064, 741.713]],
+        [[732.485, 61.231], [1196.261, 60.705], [1196.500, 270.821], [732.723, 271.347]],
+        [[689.009, 868.880], [1196.861, 867.400], [1197.337, 1030.711], [689.484, 1032.191]],
+        [[107.398, 457.852], [470.870, 447.373], [478.764, 721.162], [115.292, 731.641]]
+    ])
+
+
+def test_patch():
     root_dir = "/home/william/extdisk/data/calib/failed/20251028/"
     dirs = [d for d in Path(root_dir).iterdir() if d.is_dir()]
     failed = 0
@@ -281,8 +345,12 @@ def main():
             print(f"Processing image: {img_file}, fish eye mode {flag_is_fisheye}")
             recalib_file = str(img_file).replace(".png", "_recalib.jpg")
             rgb = cv2.imread(str(img_file))
-            mask = np.zeros_like(rgb, dtype=np.uint8)
-            mask[314:932, 488:1366] = rgb[314:932, 488:1366]
+            mask = mask_aruco(rgb, rois)
+            plt.figure()
+            plt.imshow(mask)
+            plt.axis("off")
+            plt.tight_layout()
+            plt.show()
             angles, img = chessboard_detect(
                 mask,
                 K,
@@ -323,15 +391,15 @@ def main():
 
 
 def test_single():
-    img_path = "/home/william/extdisk/data/calib/failed/20251028/Z0CABLB25IRA0061#BA.04.00.0069.01-nodetection/RGB/recheck_image.png"
+    img_path = "/home/william/extdisk/data/calib/failed/20251028/Z0CABLB25IRA0061#BA.04.00.0069.01-nodetection/RGB/rgbvi-2025-10-28-14-59-10-nodetection.png"
     intri_path = "/home/william/extdisk/data/calib/failed/20251028/Z0CABLB25IRA0061#BA.04.00.0069.01-nodetection/result/RGB.yaml"
     K, dist_coef, flag_is_fisheye = load_yaml(str(intri_path))
     print(f"K is: {K}")
     print(f"dist_coef is: {dist_coef}")
     print(f"flag_is_fisheye is: {flag_is_fisheye}")
     rgb = cv2.imread(str(img_path))
-    mask = np.zeros_like(rgb, dtype=np.uint8)
-    mask[314:832, 488:1366] = rgb[314:832, 488:1366]
+    mask = mask_aruco(rgb, rois)
+
     angles, img = chessboard_detect(
         mask,
         K,
@@ -345,7 +413,7 @@ def test_single():
     plt.axis("off")
     plt.tight_layout()
     plt.show()
-    print(f"detect angle offset is: {angles}")
+
     if angles is None:
         print("Failed to detect chessboard in image.")
         return
@@ -362,5 +430,5 @@ def test_single():
 
 
 if __name__ == "__main__":
-    # main()
-    test_single()
+    test_patch()
+    # test_single()

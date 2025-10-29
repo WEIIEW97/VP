@@ -18,8 +18,9 @@
 
 #include <fstream>
 #include <iostream>
-#include <vector>
+#include <limits>
 #include <numbers>
+#include <vector>
 
 bool FisheyeSolvePnP(cv::InputArray opoints, cv::InputArray ipoints,
                      cv::InputArray cameraMatrix, cv::InputArray distCoeffs,
@@ -99,7 +100,7 @@ ChessboardCalibrator::chessboard_detect(const cv::Mat& rgb,
   ChessboardCalibrator::CalibResult res;
 
   cv::Mat gray;
-  cv::cvtColor(rgb_, gray, cv::COLOR_RGB2GRAY);
+  cv::cvtColor(rgb, gray, cv::COLOR_RGB2GRAY);
   std::vector<cv::Point3f> objp;
   for (int i = 0; i < pattern_size.height; ++i) {
     for (int j = 0; j < pattern_size.width; ++j) {
@@ -110,7 +111,8 @@ ChessboardCalibrator::chessboard_detect(const cv::Mat& rgb,
   std::vector<cv::Point2f> corners;
   bool ret = cv::findChessboardCorners(gray, pattern_size, corners,
                                        cv::CALIB_CB_ADAPTIVE_THRESH |
-                                           cv::CALIB_CB_NORMALIZE_IMAGE | cv::CALIB_CB_FAST_CHECK);
+                                           cv::CALIB_CB_NORMALIZE_IMAGE |
+                                           cv::CALIB_CB_FAST_CHECK);
   if (!ret) {
     std::cerr << "Chessboard detection failed." << std::endl;
     return res;
@@ -171,4 +173,100 @@ ChessboardCalibrator::detect(const std::string& file_path, int h, int w,
     rgb_ = rgb.clone();
   }
   return chessboard_detect(rgb, pattern_size, square_size, is_fisheye);
+}
+
+ChessboardCalibrator::CalibResult ChessboardCalibrator::detect(
+    const std::string& file_path, int h, int w,
+    const std::vector<std::vector<cv::Point2f>>& aruco_rois,
+    const cv::Size& pattern_size, float square_size, bool is_fisheye) {
+  cv::Mat rgb;
+  if (file_path.ends_with(".yuv")) {
+    rgb = i420_to_rgb(file_path, h, w);
+  } else {
+    rgb = cv::imread(file_path, cv::IMREAD_ANYCOLOR);
+    cv::cvtColor(rgb, rgb, cv::COLOR_BGR2RGB);
+  }
+  auto mask = mask_aruco(rgb, aruco_rois);
+  rgb_ = mask.clone();
+  return chessboard_detect(mask, pattern_size, square_size, is_fisheye);
+}
+
+cv::Mat ChessboardCalibrator::mask_aruco(
+    const cv::Mat& rgb, const std::vector<std::vector<cv::Point2f>>& rois) {
+  cv::Mat mask = cv::Mat::zeros(rgb.size(), rgb.type());
+
+  std::vector<cv::Point2f> centers;
+  for (const auto& roi : rois) {
+    cv::Point2f center(0, 0);
+    for (const auto& pt : roi) {
+      center.x += pt.x;
+      center.y += pt.y;
+    }
+    center.x /= roi.size();
+    center.y /= roi.size();
+    centers.push_back(center);
+  }
+
+  int left_idx = 0, right_idx = 0, top_idx = 0, bottom_idx = 0;
+  for (size_t i = 0; i < centers.size(); ++i) {
+    if (centers[i].x < centers[left_idx].x)
+      left_idx = i;
+    if (centers[i].x > centers[right_idx].x)
+      right_idx = i;
+    if (centers[i].y < centers[top_idx].y)
+      top_idx = i;
+    if (centers[i].y > centers[bottom_idx].y)
+      bottom_idx = i;
+  }
+
+  const auto& left_roi = rois[left_idx];
+  float rightmost_x = 0;
+  for (const auto& pt : left_roi) {
+    rightmost_x = std::max(rightmost_x, pt.x);
+  }
+  cv::Point2f left_corner(rightmost_x, centers[left_idx].y);
+
+  const auto& right_roi = rois[right_idx];
+  float leftmost_x = std::numeric_limits<float>::max();
+  for (const auto& pt : right_roi) {
+    leftmost_x = std::min(leftmost_x, pt.x);
+  }
+  cv::Point2f right_corner(leftmost_x, centers[right_idx].y);
+
+  const auto& top_roi = rois[top_idx];
+  float bottommost_y = 0;
+  for (const auto& pt : top_roi) {
+    bottommost_y = std::max(bottommost_y, pt.y);
+  }
+  cv::Point2f top_corner(centers[top_idx].x, bottommost_y);
+
+  const auto& bottom_roi = rois[bottom_idx];
+  float topmost_y = std::numeric_limits<float>::max();
+  for (const auto& pt : bottom_roi) {
+    topmost_y = std::min(topmost_y, pt.y);
+  }
+  cv::Point2f bottom_corner(centers[bottom_idx].x, topmost_y);
+
+  std::vector<cv::Point2f> corners = {left_corner, right_corner, top_corner,
+                                      bottom_corner};
+  float x_min = corners[0].x, y_min = corners[0].y;
+  float x_max = corners[0].x, y_max = corners[0].y;
+  for (const auto& pt : corners) {
+    x_min = std::min(x_min, pt.x);
+    y_min = std::min(y_min, pt.y);
+    x_max = std::max(x_max, pt.x);
+    y_max = std::max(y_max, pt.y);
+  }
+
+  int x_min_int = static_cast<int>(x_min);
+  int y_min_int = static_cast<int>(y_min);
+  int x_max_int = static_cast<int>(x_max);
+  int y_max_int = static_cast<int>(y_max);
+
+  rgb(cv::Rect(x_min_int, y_min_int, x_max_int - x_min_int,
+               y_max_int - y_min_int))
+      .copyTo(mask(cv::Rect(x_min_int, y_min_int, x_max_int - x_min_int,
+                            y_max_int - y_min_int)));
+
+  return mask;
 }

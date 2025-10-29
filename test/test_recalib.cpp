@@ -102,6 +102,13 @@ CameraParams load_yaml(const std::string& yaml_path) {
   return params;
 }
 
+const std::vector<std::vector<cv::Point2f>> rois = {
+  {{1400.041, 739.371}, {1401.901, 432.779}, {1787.924, 435.121}, {1786.064, 741.713}},
+  {{732.485, 61.231}, {1196.261, 60.705}, {1196.500, 270.821}, {732.723, 271.347}},
+  {{689.009, 868.880}, {1196.861, 867.400}, {1197.337, 1030.711}, {689.484, 1032.191}},
+  {{107.398, 457.852}, {470.870, 447.373}, {478.764, 721.162}, {115.292, 731.641}}
+};
+
 void test_patch() {
   std::string root_dir = "/home/william/extdisk/data/calib/failed/20251028/";
   // retrieve all directories in root_dir if begin with "abnor"
@@ -118,7 +125,7 @@ void test_patch() {
     auto is_fisheye = params.is_fisheye;
     auto calibrator = ChessboardCalibrator(K, dist);
     for (const auto& img_file : img_files) {
-      auto res = calibrator.detect(img_file, 1080, 1920, cv::Size(6, 3), 0.08, is_fisheye);
+      auto res = calibrator.detect(img_file, 1080, 1920, rois,cv::Size(6, 3), 0.08, is_fisheye);
       std::cout << "file path is: " << img_file << std::endl;
       if (res.success) {
         std::cout << "Calibration result is: (yaw, pitch, roll) in degrees "
@@ -157,6 +164,48 @@ void test_single() {
     cv::destroyAllWindows();
   } else {
     std::cout << "Failed to run calibration!" << std::endl;
+  }
+}
+
+void test_aruco_mask() {
+  std::string img_path = 
+      "/home/william/extdisk/data/calib/failed/20251028/Z0CABLB25IRA0061#BA.04.00.0069.01-nodetection/RGB/rgbvi-2025-10-28-14-59-10-nodetection.png";
+  std::string intri_path = 
+      "/home/william/extdisk/data/calib/failed/20251028/Z0CABLB25IRA0061#BA.04.00.0069.01-nodetection/result/RGB.yaml";
+  
+  auto params = load_yaml(intri_path);
+  auto K = params.K;
+  auto dist = params.dist_coef;
+  auto is_fisheye = params.is_fisheye;
+  
+  std::cout << "K is: " << K << std::endl;
+  std::cout << "dist_coef is: " << dist << std::endl;
+  std::cout << "flag_is_fisheye is: " << is_fisheye << std::endl;
+  
+  auto calibrator = ChessboardCalibrator(K, dist);
+  auto res = calibrator.detect(img_path, 1080, 1920, rois, cv::Size(6, 3), 0.08, is_fisheye);
+  
+  // Display the masked image with detected corners
+  auto rgb = calibrator.get_rgb_image();
+  cv::imshow("masked image", rgb);
+  cv::waitKey(0);
+  
+  std::cout << "detect angle offset is: " << res.angle_degrees << std::endl;
+  
+  if (res.success) {
+    if (cv::norm(res.angle_degrees[0]) >= 1.5 || 
+        cv::norm(res.angle_degrees[1]) >= 1.5 || 
+        cv::norm(res.angle_degrees[2]) >= 1.5) {
+      std::cout << "Exceed the offset threshold of 1.5 degrees." << std::endl;
+      return;
+    }
+    
+    auto corrected_im = calibrator.get_warped_image(res);
+    cv::imshow("corrected image", corrected_im);
+    cv::waitKey(0);
+    cv::destroyAllWindows();
+  } else {
+    std::cout << "Failed to detect chessboard in image." << std::endl;
   }
 }
 
