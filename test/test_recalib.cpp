@@ -109,10 +109,17 @@ const std::vector<std::vector<cv::Point2f>> rois = {
   {{107.398, 457.852}, {470.870, 447.373}, {478.764, 721.162}, {115.292, 731.641}}
 };
 
+const std::vector<std::vector<cv::Point2f>> rois_scaled = {
+  {{1400.041 * 0.5, 739.371 * 0.5}, {1401.901 * 0.5, 432.779 * 0.5}, {1787.924 * 0.5, 435.121 * 0.5}, {1786.064 * 0.5, 741.713 * 0.5}},
+  {{732.485 * 0.5, 61.231 * 0.5}, {1196.261 * 0.5, 60.705 * 0.5}, {1196.500 * 0.5, 270.821 * 0.5}, {732.723 * 0.5, 271.347 * 0.5}},
+  {{689.009 * 0.5, 868.880 * 0.5}, {1196.861 * 0.5, 867.400 * 0.5}, {1197.337 * 0.5, 1030.711 * 0.5}, {689.484 * 0.5, 1032.191 * 0.5}},
+  {{107.398 * 0.5, 457.852 * 0.5}, {470.870 * 0.5, 447.373 * 0.5}, {478.764 * 0.5, 721.162 * 0.5}, {115.292 * 0.5, 731.641 * 0.5}}
+};
+
 void test_patch() {
-  std::string root_dir = "/home/william/extdisk/data/calib/failed/20251028/";
+  std::string root_dir = "/home/william/extdisk/data/calib/failed/20251030/";
   // retrieve all directories in root_dir if begin with "abnor"
-  std::vector<std::string> dirs = get_dirs(root_dir, "Z0CABLB25IRA0061");
+  std::vector<std::string> dirs = get_dirs(root_dir, "Z0CABLB25IRA");
   for (const auto& dir : dirs) {
     fs::path intri_path = fs::path(root_dir) /
                           fs::path(dir).filename() / "result" /
@@ -121,18 +128,27 @@ void test_patch() {
     std::vector<std::string> img_files = get_files(img_path.string(), ".png");
     auto params = load_yaml(intri_path.string());
     auto K = params.K;
+    auto half_k = K.clone();
+    // half_k(cv::Rect(0, 0, 2, 2)) = half_k(cv::Rect(0, 0, 2, 2)) * 0.5;
+    half_k.at<double>(0, 0) *= 0.5;
+    half_k.at<double>(1, 1) *= 0.5;
+    half_k.at<double>(0, 2) *= 0.5;
+    half_k.at<double>(1, 2) *= 0.5;
+
     auto dist = params.dist_coef;
     auto is_fisheye = params.is_fisheye;
-    auto calibrator = ChessboardCalibrator(K, dist);
+    auto calibrator = ChessboardCalibrator(half_k, dist);
     for (const auto& img_file : img_files) {
-      auto res = calibrator.detect(img_file, 1080, 1920, rois,cv::Size(6, 3), 0.08, is_fisheye);
+      auto rgb = calibrator.im_read(img_file);
+      cv::resize(rgb, rgb, rgb.size() / 2);
+      auto res = calibrator.detect(rgb, rois_scaled,cv::Size(6, 3), 0.08, is_fisheye);
       std::cout << "file path is: " << img_file << std::endl;
       if (res.success) {
         std::cout << "Calibration result is: (yaw, pitch, roll) in degrees "
                   << res.angle_degrees << std::endl;
         auto verbose_img = calibrator.get_warped_image(res);
         // resize to 1/2
-        cv::resize(verbose_img, verbose_img, cv::Size(), 0.5, 0.5);
+        // cv::resize(verbose_img, verbose_img, cv::Size(), 0.5, 0.5);
         cv::imshow("warped image", verbose_img);
         cv::waitKey(0);
         cv::destroyAllWindows();
@@ -154,7 +170,8 @@ void test_single() {
   auto dist = params.dist_coef;
   auto is_fisheye = params.is_fisheye;
   auto calibrator = ChessboardCalibrator(K, dist);
-  auto res = calibrator.detect(img_path, 1080, 1920, cv::Size(6, 3), 0.08, is_fisheye);
+  auto rgb = calibrator.im_read(img_path);
+  auto res = calibrator.detect(rgb, cv::Size(6, 3), 0.08, is_fisheye);
   if (res.success) {
     std::cout << "Calibration result is: (yaw, pitch, roll) in degrees "
               << res.angle_degrees << std::endl;
@@ -183,12 +200,9 @@ void test_aruco_mask() {
   std::cout << "flag_is_fisheye is: " << is_fisheye << std::endl;
   
   auto calibrator = ChessboardCalibrator(K, dist);
-  auto res = calibrator.detect(img_path, 1080, 1920, rois, cv::Size(6, 3), 0.08, is_fisheye);
-  
-  // Display the masked image with detected corners
-  auto rgb = calibrator.get_rgb_image();
-  cv::imshow("masked image", rgb);
-  cv::waitKey(0);
+  auto rgb = calibrator.im_read(img_path);
+  auto res = calibrator.detect(rgb, rois, cv::Size(6, 3), 0.08, is_fisheye);
+
   
   std::cout << "detect angle offset is: " << res.angle_degrees << std::endl;
   

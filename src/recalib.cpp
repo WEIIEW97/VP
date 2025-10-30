@@ -16,6 +16,7 @@
 
 #include "recalib.h"
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -100,7 +101,7 @@ ChessboardCalibrator::chessboard_detect(const cv::Mat& rgb,
   ChessboardCalibrator::CalibResult res;
 
   cv::Mat gray;
-  cv::cvtColor(rgb, gray, cv::COLOR_RGB2GRAY);
+  cv::cvtColor(rgb, gray, cv::COLOR_BGR2GRAY);
   std::vector<cv::Point3f> objp;
   for (int i = 0; i < pattern_size.height; ++i) {
     for (int j = 0; j < pattern_size.width; ++j) {
@@ -109,6 +110,7 @@ ChessboardCalibrator::chessboard_detect(const cv::Mat& rgb,
   }
 
   std::vector<cv::Point2f> corners;
+
   bool ret = cv::findChessboardCorners(gray, pattern_size, corners,
                                        cv::CALIB_CB_ADAPTIVE_THRESH |
                                            cv::CALIB_CB_NORMALIZE_IMAGE |
@@ -145,6 +147,94 @@ ChessboardCalibrator::chessboard_detect(const cv::Mat& rgb,
   return res;
 }
 
+ChessboardCalibrator::CalibResult
+ChessboardCalibrator::adaptive_chessboard_detect(const cv::Mat& rgb,
+                                                 const cv::Vec4i& region,
+                                                 const cv::Size& pattern_size,
+                                                 float square_size,
+                                                 bool is_fisheye) {
+  ChessboardCalibrator::CalibResult res;
+
+  cv::Mat gray;
+  cv::cvtColor(rgb, gray, cv::COLOR_RGB2GRAY);
+  std::vector<cv::Point3f> objp;
+  for (int i = 0; i < pattern_size.height; ++i) {
+    for (int j = 0; j < pattern_size.width; ++j) {
+      objp.push_back(cv::Point3f(j * square_size, i * square_size, 0));
+    }
+  }
+
+  int iter = 0;
+  cv::Vec4i curr_region = region;
+  cv::Mat valid_gray =
+      gray(cv::Rect(curr_region[0], curr_region[1],
+                    std::max(0, curr_region[2] - curr_region[0]),
+                    std::max(0, curr_region[3] - curr_region[1])));
+
+  std::vector<cv::Point2f> corners;
+  bool ret = false;
+  cv::Vec4i prev_region;
+
+  while (!ret && iter < max_iters_) {
+    bool ret_ = cv::findChessboardCorners(valid_gray, pattern_size, corners,
+                                          cv::CALIB_CB_ADAPTIVE_THRESH |
+                                              cv::CALIB_CB_NORMALIZE_IMAGE |
+                                              cv::CALIB_CB_FAST_CHECK);
+    if (ret_) {
+      ret = ret_;
+      break;
+    }
+    prev_region = curr_region;
+    margin_marching(curr_region, stride_);
+    std::cout << curr_region << std::endl;
+    if (curr_region == prev_region)
+      break;
+
+    if (curr_region[0] >= curr_region[2] || curr_region[1] >= curr_region[3])
+      break;
+    valid_gray = gray(cv::Rect(curr_region[0], curr_region[1],
+                               curr_region[2] - curr_region[0],
+                               curr_region[3] - curr_region[1]));
+    iter++;
+  }
+
+  if (!ret) {
+    std::cerr << "Chessboard detection failed." << std::endl;
+    return res;
+  }
+
+  cv::TermCriteria criteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER,
+                            30, 0.001);
+  // Refine on ROI then offset to full-image coordinates
+  cv::cornerSubPix(valid_gray, corners, cv::Size(11, 11), cv::Size(-1, -1),
+                   criteria);
+  for (auto& p : corners) {
+    p.x += static_cast<float>(curr_region[0]);
+    p.y += static_cast<float>(curr_region[1]);
+  }
+
+  cv::Mat rvec, tvec;
+  bool pnp_success = false;
+  if (is_fisheye) {
+    // take the first 4 dist coeffs in dist_ for fisheye model
+    cv::Vec<double, 4> fisheye_dist(dist_[0], dist_[1], dist_[2], dist_[3]);
+    pnp_success = FisheyeSolvePnP(objp, corners, K_, fisheye_dist, rvec, tvec);
+  } else {
+    pnp_success = cv::solvePnP(objp, corners, K_, cv::Mat(dist_), rvec, tvec);
+  }
+  if (!pnp_success) {
+    std::cerr << "SolvePnP failed." << std::endl;
+  }
+  cv::Matx33d R;
+  cv::Rodrigues(rvec, R);
+
+  auto ypr = R2ypr(R);
+
+  res.angle_degrees = ypr;
+  res.success = true;
+  return res;
+}
+
 cv::Mat ChessboardCalibrator::get_warped_image(
     const ChessboardCalibrator::CalibResult& calib_res) const {
   auto ypr = calib_res.angle_degrees;
@@ -159,42 +249,67 @@ cv::Mat ChessboardCalibrator::get_warped_image(
 
 cv::Mat ChessboardCalibrator::get_rgb_image() const { return rgb_; }
 
-ChessboardCalibrator::CalibResult
-ChessboardCalibrator::detect(const std::string& file_path, int h, int w,
-                             const cv::Size& pattern_size, float square_size,
-                             bool is_fisheye) {
-  // whether file_path ends with ".yuv" or image file extension
+cv::Mat ChessboardCalibrator::im_read(const std::string& file_path) {
+  cv::Mat rgb;
+  if (file_path.ends_with(".yuv")) {
+    std::cerr << "Error: For YUV files, please provide height and width."
+              << std::endl;
+    return cv::Mat();
+  } else {
+    rgb = cv::imread(file_path, cv::IMREAD_ANYCOLOR);
+    cv::cvtColor(rgb, rgb, cv::COLOR_BGR2RGB);
+  }
+  rgb_ = rgb.clone();
+  return rgb;
+}
+
+cv::Mat ChessboardCalibrator::im_read(const std::string& file_path, int h,
+                                      int w) {
   cv::Mat rgb;
   if (file_path.ends_with(".yuv")) {
     rgb = i420_to_rgb(file_path, h, w);
   } else {
     rgb = cv::imread(file_path, cv::IMREAD_ANYCOLOR);
     cv::cvtColor(rgb, rgb, cv::COLOR_BGR2RGB);
-    rgb_ = rgb.clone();
   }
+  rgb_ = rgb.clone();
+  return rgb;
+}
+
+ChessboardCalibrator::CalibResult
+ChessboardCalibrator::detect(const cv::Mat& rgb, const cv::Size& pattern_size,
+                             float square_size, bool is_fisheye) {
   return chessboard_detect(rgb, pattern_size, square_size, is_fisheye);
 }
 
 ChessboardCalibrator::CalibResult ChessboardCalibrator::detect(
-    const std::string& file_path, int h, int w,
-    const std::vector<std::vector<cv::Point2f>>& aruco_rois,
+    const cv::Mat& rgb, const std::vector<std::vector<cv::Point2f>>& aruco_rois,
     const cv::Size& pattern_size, float square_size, bool is_fisheye) {
-  cv::Mat rgb;
-  if (file_path.ends_with(".yuv")) {
-    rgb = i420_to_rgb(file_path, h, w);
-  } else {
-    rgb = cv::imread(file_path, cv::IMREAD_ANYCOLOR);
-    cv::cvtColor(rgb, rgb, cv::COLOR_BGR2RGB);
-  }
-  auto mask = mask_aruco(rgb, aruco_rois);
-  rgb_ = mask.clone();
-  return chessboard_detect(mask, pattern_size, square_size, is_fisheye);
+  auto region = identify_region(aruco_rois);
+  return adaptive_chessboard_detect(rgb, region, pattern_size, square_size,
+                                    is_fisheye);
 }
 
 cv::Mat ChessboardCalibrator::mask_aruco(
     const cv::Mat& rgb, const std::vector<std::vector<cv::Point2f>>& rois) {
   cv::Mat mask = cv::Mat::zeros(rgb.size(), rgb.type());
 
+  auto roi = identify_region(rois);
+  int x_min_int = roi[0];
+  int y_min_int = roi[1];
+  int x_max_int = roi[2];
+  int y_max_int = roi[3];
+
+  rgb(cv::Rect(x_min_int, y_min_int, x_max_int - x_min_int,
+               y_max_int - y_min_int))
+      .copyTo(mask(cv::Rect(x_min_int, y_min_int, x_max_int - x_min_int,
+                            y_max_int - y_min_int)));
+
+  return mask;
+}
+
+cv::Vec4i ChessboardCalibrator::identify_region(
+    const std::vector<std::vector<cv::Point2f>>& rois) {
   std::vector<cv::Point2f> centers;
   for (const auto& roi : rois) {
     cv::Point2f center(0, 0);
@@ -263,10 +378,12 @@ cv::Mat ChessboardCalibrator::mask_aruco(
   int x_max_int = static_cast<int>(x_max);
   int y_max_int = static_cast<int>(y_max);
 
-  rgb(cv::Rect(x_min_int, y_min_int, x_max_int - x_min_int,
-               y_max_int - y_min_int))
-      .copyTo(mask(cv::Rect(x_min_int, y_min_int, x_max_int - x_min_int,
-                            y_max_int - y_min_int)));
+  return cv::Vec4i(x_min_int, y_min_int, x_max_int, y_max_int);
+}
 
-  return mask;
+void ChessboardCalibrator::margin_marching(cv::Vec4i& region, int stride) {
+  region[0] = region[0] + stride;
+  region[1] = region[1] + stride;
+  region[2] = std::max(0, region[2] - stride);
+  region[3] = std::max(0, region[3] - stride);
 }
