@@ -309,6 +309,7 @@ public:
                         const Eigen::Vector3d& pw1, const Eigen::Vector3d& pw2,
                         double cam_h);
   Eigen::Vector2f get_yp_est_by_vp(const Eigen::Vector2f& vp);
+  Eigen::Vector2f get_vp_est_by_yp(const Eigen::Vector2f& yp);
   Eigen::Matrix3f get_K() const;
   Eigen::VectorXf get_dist() const;
 

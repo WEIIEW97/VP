@@ -70,6 +70,28 @@ cv::Vec3d R2ypr(const cv::Matx33d& R) {
   return ypr / std::numbers::pi * 180.0;
 }
 
+bool findCornersForcedTopLeft(const cv::Mat& image, cv::Size patternSize,
+                              std::vector<cv::Point2f>& corners) {
+  bool found = cv::findChessboardCorners(image, patternSize, corners,
+                                         cv::CALIB_CB_ADAPTIVE_THRESH |
+                                             cv::CALIB_CB_NORMALIZE_IMAGE |
+                                             cv::CALIB_CB_FAST_CHECK);
+
+  if (found && !corners.empty()) {
+    cv::Point2f p0 = corners.front();
+    cv::Point2f pn = corners.back();
+
+    float dist0 = p0.x * p0.x + p0.y * p0.y;
+    float distn = pn.x * pn.x + pn.y * pn.y;
+
+    if (dist0 > distn) {
+      std::reverse(corners.begin(), corners.end());
+    }
+  }
+
+  return found;
+}
+
 cv::Mat ChessboardCalibrator::i420_to_rgb(const std::string& yuv_path, int h,
                                           int w) {
   std::ifstream file(yuv_path, std::ios::binary);
@@ -111,10 +133,11 @@ ChessboardCalibrator::chessboard_detect(const cv::Mat& rgb,
 
   std::vector<cv::Point2f> corners;
 
-  bool ret = cv::findChessboardCorners(gray, pattern_size, corners,
-                                       cv::CALIB_CB_ADAPTIVE_THRESH |
-                                           cv::CALIB_CB_NORMALIZE_IMAGE |
-                                           cv::CALIB_CB_FAST_CHECK);
+  // bool ret = cv::findChessboardCorners(gray, pattern_size, corners,
+  //                                      cv::CALIB_CB_ADAPTIVE_THRESH |
+  //                                          cv::CALIB_CB_NORMALIZE_IMAGE |
+  //                                          cv::CALIB_CB_FAST_CHECK);
+  bool ret = findCornersForcedTopLeft(gray, pattern_size, corners);
   if (!ret) {
     std::cerr << "Chessboard detection failed." << std::endl;
     return res;
@@ -176,17 +199,17 @@ ChessboardCalibrator::adaptive_chessboard_detect(const cv::Mat& rgb,
   cv::Vec4i prev_region;
 
   while (!ret && iter < max_iters_) {
-    bool ret_ = cv::findChessboardCorners(valid_gray, pattern_size, corners,
-                                          cv::CALIB_CB_ADAPTIVE_THRESH |
-                                              cv::CALIB_CB_NORMALIZE_IMAGE |
-                                              cv::CALIB_CB_FAST_CHECK);
+    // bool ret_ = cv::findChessboardCorners(valid_gray, pattern_size, corners,
+    //                                       cv::CALIB_CB_ADAPTIVE_THRESH |
+    //                                           cv::CALIB_CB_NORMALIZE_IMAGE |
+    //                                           cv::CALIB_CB_FAST_CHECK);
+    bool ret_ = findCornersForcedTopLeft(valid_gray, pattern_size, corners);
     if (ret_) {
       ret = ret_;
       break;
     }
     prev_region = curr_region;
     margin_marching(curr_region, stride_);
-    std::cout << curr_region << std::endl;
     if (curr_region == prev_region)
       break;
 

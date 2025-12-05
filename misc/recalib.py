@@ -122,7 +122,7 @@ def mask_aruco(im: np.ndarray, rois: np.ndarray):
     Returns:
         mask: Binary mask with the extracted region set to image values
     """
-    mask = np.zeros_like(im, dtype=np.uint8)
+    # mask = np.zeros_like(im, dtype=np.uint8)
     # Compute centers for all ROIs (average of 4 corner points)
     centers = np.mean(rois, axis=1)
 
@@ -161,15 +161,40 @@ def mask_aruco(im: np.ndarray, rois: np.ndarray):
     x_max, y_max = np.max(corners, axis=0)
 
     # Copy the region to the mask
-    mask[y_min:y_max, x_min:x_max] = im[y_min:y_max, x_min:x_max]
+    # mask[y_min:y_max, x_min:x_max] = im[y_min:y_max, x_min:x_max]
     region = (x_min, y_min, x_max, y_max)
-    return mask, region
+    return im[y_min:y_max, x_min:x_max], region
 
 
 def margin_marching(region: tuple, stride: int = 4):
     x_min, y_min, x_max, y_max = region
     # shrink region inward by stride while keeping order (x_min, y_min, x_max, y_max)
     return (x_min + stride, y_min + stride, x_max - stride, y_max - stride)
+
+
+def find_corners_forced_top_left(image, pattern_size):
+    found, corners = cv2.findChessboardCorners(
+        image,
+        pattern_size,
+        flags=cv2.CALIB_CB_ADAPTIVE_THRESH
+        + cv2.CALIB_CB_NORMALIZE_IMAGE
+        + cv2.CALIB_CB_FAST_CHECK,
+    )
+
+    if found:
+        # Get the first and last corners
+        p0 = corners[0][0]
+        pn = corners[-1][0]
+
+        # Calculate squared Euclidean distance to origin (0,0)
+        dist0 = p0[0] ** 2 + p0[1] ** 2
+        distn = pn[0] ** 2 + pn[1] ** 2
+
+        # If the first point is farther, the array is reversed
+        if dist0 > distn:
+            corners = np.ascontiguousarray(corners[::-1])
+
+    return found, corners
 
 
 def chessboard_detect(
@@ -199,13 +224,15 @@ def chessboard_detect(
     )
 
     # Find chessboard corners
-    corners_found, corners = cv2.findChessboardCorners(
-        gray,
-        pattern_size,
-        flags=cv2.CALIB_CB_ADAPTIVE_THRESH
-        + cv2.CALIB_CB_NORMALIZE_IMAGE
-        + cv2.CALIB_CB_FAST_CHECK,
-    )
+    # corners_found, corners = cv2.findChessboardCorners(
+    #     gray,
+    #     pattern_size,
+    #     flags=cv2.CALIB_CB_ADAPTIVE_THRESH
+    #     + cv2.CALIB_CB_NORMALIZE_IMAGE
+    #     + cv2.CALIB_CB_FAST_CHECK,
+    # )
+
+    corners_found, corners = find_corners_forced_top_left(gray, pattern_size)
 
     if not corners_found:
         print("Chessboard corners not found.")
@@ -293,7 +320,7 @@ def adpative_chessboard_detect(
     pattern_size: tuple = (8, 5),
     square_size: float = 0.08,
     is_fisheye: bool = False,
-    max_attempts: int = 12,
+    max_attempts: int = 20,
 ):
     img = np.copy(rgb)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -429,7 +456,7 @@ def adpative_chessboard_detect(
     return ypr, img
 
 
-def recalib(im: np.ndarray, K: np.ndarray, rotation_angles: tuple, crop: bool = False):
+def recalib(im: np.ndarray, K: np.ndarray, rotation_angles: tuple):
     """
     Apply 3D rotation (pitch, yaw, roll) to image using perspective transformation.
 
@@ -465,38 +492,59 @@ def recalib(im: np.ndarray, K: np.ndarray, rotation_angles: tuple, crop: bool = 
     return corrected_im
 
 
+# rois = np.array(
+#     [
+#         [
+#             [1400.041, 739.371],
+#             [1401.901, 432.779],
+#             [1787.924, 435.121],
+#             [1786.064, 741.713],
+#         ],
+#         [
+#             [732.485, 61.231],
+#             [1196.261, 60.705],
+#             [1196.500, 270.821],
+#             [732.723, 271.347],
+#         ],
+#         [
+#             [689.009, 868.880],
+#             [1196.861, 867.400],
+#             [1197.337, 1030.711],
+#             [689.484, 1032.191],
+#         ],
+#         [
+#             [107.398, 457.852],
+#             [470.870, 447.373],
+#             [478.764, 721.162],
+#             [115.292, 731.641],
+#         ],
+#     ]
+# )
+
 rois = np.array(
     [
-        [
-            [1400.041, 739.371],
-            [1401.901, 432.779],
-            [1787.924, 435.121],
-            [1786.064, 741.713],
-        ],
-        [
-            [732.485, 61.231],
-            [1196.261, 60.705],
-            [1196.500, 270.821],
-            [732.723, 271.347],
-        ],
-        [
-            [689.009, 868.880],
-            [1196.861, 867.400],
-            [1197.337, 1030.711],
-            [689.484, 1032.191],
-        ],
-        [
-            [107.398, 457.852],
-            [470.870, 447.373],
-            [478.764, 721.162],
-            [115.292, 731.641],
-        ],
+        [633.771, 408.648],
+        [636.300, 284.080],
+        [801.740, 287.438],
+        [799.211, 412.007],
+        [369.439, 216.523],
+        [370.195, 101.552],
+        [561.382, 102.810],
+        [560.626, 217.781],
+        [355.649, 515.359],
+        [356.041, 447.658],
+        [551.708, 448.789],
+        [551.316, 516.490],
+        [113.013, 286.830],
+        [268.770, 279.857],
+        [273.713, 390.267],
+        [117.956, 397.241],
     ]
-)
+).reshape((4, 4, 2))
 
 
 def test_patch():
-    root_dir = "/home/william/extdisk/data/calib/failed/20251030"
+    root_dir = "/home/william/extdisk/data/calib/failed/20251030_append"
     dirs = [d for d in Path(root_dir).iterdir() if d.is_dir()]
     failed = 0
     total = 0
@@ -512,7 +560,7 @@ def test_patch():
         # flag_is_fisheye = False
 
         # KK = np.copy(K)
-        K[:2, :] = K[:2, :] * 0.5 
+        K[:2, :] = K[:2, :] * 0.5
 
         img_path = dir / "RGB"
         # find the .png file in img_path
@@ -527,7 +575,7 @@ def test_patch():
             scale = 0.5
             rois_scaled = (rois * scale).astype(np.float32)
             mask, region = mask_aruco(rgb, rois_scaled)
-            print(f"initial region is: {region}")
+            # print(f"initial region is: {region}")
             # mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
             # binarize this mask
             # mask = cv2.adaptiveThreshold(mask, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)
@@ -561,7 +609,7 @@ def test_patch():
                 continue
             total += 1
             success_files.append(str(img_file))
-            corrected_im = recalib(img, K, angles, False)
+            # corrected_im = recalib(img, K, angles, False)
             # cv2.imwrite(str(recalib_file), corrected_im)
             # plt.figure()
             # plt.imshow(corrected_im)
@@ -580,8 +628,8 @@ def test_patch():
 
 
 def test_single():
-    img_path = "/home/william/extdisk/data/calib/failed/20251030/Z0CABLB25IRA0066#BA.04.00.0069.01-nodetection/RGB/rgbvi-2025-10-30-10-50-42.png"
-    intri_path = "/home/william/extdisk/data/calib/failed/20251030/Z0CABLB25IRA0066#BA.04.00.0069.01-nodetection/result/RGB.yaml"
+    img_path = "/home/william/extdisk/data/calib/11111/RGB/rgbvi-2025-12-4-14-38-10.png"
+    intri_path = "/home/william/extdisk/data/calib/11111/result/RGB.yaml"
     K, dist_coef, flag_is_fisheye = load_yaml(str(intri_path))
     print(f"K is: {K}")
     print(f"dist_coef is: {dist_coef}")
@@ -589,8 +637,18 @@ def test_single():
     rgb = cv2.imread(str(img_path))
     rgb = cv2.resize(rgb, fx=0.5, fy=0.5, dsize=None)
     # mask = mask_aruco(rgb, rois)
+    # mask, region = mask_aruco(rgb, rois)
     K[:2, :] = K[:2, :] * 0.5
 
+    # angles, img = adpative_chessboard_detect(
+    #     rgb,
+    #     K,
+    #     dist_coef,
+    #     region,
+    #     pattern_size=(6, 3),
+    #     square_size=0.08,
+    #     is_fisheye=flag_is_fisheye,
+    # )
     angles, img = chessboard_detect(
         rgb,
         K,
@@ -605,6 +663,7 @@ def test_single():
     plt.tight_layout()
     plt.show()
 
+    print(f"angles: {angles}")
     if angles is None:
         print("Failed to detect chessboard in image.")
         return

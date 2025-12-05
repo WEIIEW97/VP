@@ -19,6 +19,7 @@
 #include "macros.h"
 
 #include "est_roll.h"
+#include "utils.h"
 
 bool VP::judge_valid(const std::vector<Eigen::MatrixXf>& frame_pts, int thr) {
   return frame_pts.size() >= thr;
@@ -245,6 +246,16 @@ VP::get_vp_estimation(const std::vector<Eigen::MatrixXf>& frame_pts) {
 
 Eigen::Vector2f VP::get_yp_est_by_vp(const Eigen::Vector2f& vp) {
   return estimate_yp(vp);
+}
+
+Eigen::Vector2f VP::get_vp_est_by_yp(const Eigen::Vector2f& yp) {
+  // note that input yp is in degrees
+  auto yaw_rad = deg2rag(yp(0));
+  auto pitch_rad = deg2rag(yp(1));
+
+  float u = fx_ * std::tan(yaw_rad) + cx_;
+  float v = cy_ - fy_ * std::tan(pitch_rad);
+  return Eigen::Vector2f(u, v);
 }
 
 void VP::reload() {
