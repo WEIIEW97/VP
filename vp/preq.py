@@ -271,6 +271,14 @@ class VP:
         yaw = np.arctan((x - self.cx) / self.fx) * 180 / np.pi
         pitch = np.arctan((self.cy - y) / self.fy) * 180 / np.pi
         return yaw, pitch
+    
+    def estimtate_vp_by_yp(self, yaw, pitch):
+        yaw_rad = np.deg2rad(yaw)
+        pitch_rad = np.deg2rad(pitch)
+        
+        u = self.fx * np.tan(yaw_rad) + self.cx
+        v = self.cy - self.fy * np.tan(pitch_rad)
+        return np.array((u, v))
 
 
 def plot_res(
@@ -523,6 +531,8 @@ def main():
                 vp.compute_vp()
                 vanishing_point = vp.filter_candidates("close")
                 yaw, pitch = vp.estimate_yp(vanishing_point)
+                # est_vp = vp.estimtate_vp_by_yp(yaw, pitch)
+                # print(f"estimated vp fron yaw/pitch: {est_vp}, original vp: {vanishing_point}")
                 # min_roll, max_roll, min_pitch, max_pitch = geo_predictor.predict()
                 # est = {
                 #     "min_roll": min_roll,
@@ -667,4 +677,5 @@ def main_est_roll():
 
     
 if __name__ == "__main__":
-    main_est_roll()
+    # main_est_roll()
+    main()
