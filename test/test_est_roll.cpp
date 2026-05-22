@@ -19,6 +19,8 @@
 #include <string>
 #include "../src/json.h"
 
+#include <opencv2/opencv.hpp>
+
 using namespace std;
 
 int main() {
@@ -52,5 +54,8 @@ int main() {
   auto ypr = vp_detector.get_ypr_estimation(frame, uv1, uv2, pw1, pw2, cam_h);
   cout << "Estimated YPR: " << ypr.transpose() << endl;
   cout << "Estimated roll angles: " << ypr(2) << endl;
+
+  std::cout << cv::getBuildInformation() << std::endl;
+
   return 0;
 }

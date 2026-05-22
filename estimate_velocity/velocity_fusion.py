@@ -80,10 +80,16 @@ class VelocityFusion:
             return self.last_valid_velocity
             
         if optical_velocity is None:
-            return imu_velocity
+            fused = imu_velocity if imu_velocity is not None else self.last_valid_velocity
+            self.velocity_buffer.append(fused)
+            self.last_valid_velocity = fused
+            return fused
             
         if imu_velocity is None:
-            return optical_velocity
+            fused = optical_velocity if optical_velocity is not None else self.last_valid_velocity
+            self.velocity_buffer.append(fused)
+            self.last_valid_velocity = fused
+            return fused
             
         # Calculate consistency score
         diff = abs(optical_velocity - imu_velocity)

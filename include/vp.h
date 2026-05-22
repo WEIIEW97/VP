@@ -18,14 +18,28 @@
 
 #include <Eigen/Dense>
 #include <cmath>
-#include <iostream>
-#include <utility>
 #include <deque>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <utility>
 
 enum class CameraModel {
   pinhole_k6,
   fisheye,
 };
+
+template <typename EigenScalarType>
+Eigen::Array<EigenScalarType, Eigen::Dynamic, 1> clamp_abs_min(
+    const Eigen::Array<EigenScalarType, Eigen::Dynamic, 1>& values,
+    EigenScalarType epsilon) {
+  return values.unaryExpr([epsilon](EigenScalarType value) {
+    if (std::abs(value) < epsilon) {
+      return value < EigenScalarType(0) ? -epsilon : epsilon;
+    }
+    return value;
+  });
+}
 
 template <typename EigenScalarType>
 Eigen::Matrix<EigenScalarType, -1, 2> undistort_points_pinhole(
@@ -116,7 +130,10 @@ Eigen::Matrix<EigenScalarType, -1, 2> undistort_points_pinhole(
     const Array<EigenScalarType, Dynamic, 1> J22 = radial + y * drdy + dtdy_y;
 
     const Array<EigenScalarType, Dynamic, 1> det = J11 * J22 - J12 * J21;
-    const Array<EigenScalarType, Dynamic, 1> inv_det = 1.0 / det.max(epsilon);
+    const Array<EigenScalarType, Dynamic, 1> safe_det =
+			clamp_abs_min(det, epsilon);
+		const Array<EigenScalarType, Dynamic, 1> inv_det =
+			EigenScalarType(1) / safe_det;
 
     xu += inv_det * (J22 * x_err - J12 * y_err);
     yu += inv_det * (-J21 * x_err + J11 * y_err);
@@ -137,8 +154,8 @@ template <typename EigenScalarType>
 Eigen::Matrix<EigenScalarType, -1, 2> undistort_points_fisheye(
     const Eigen::Matrix<EigenScalarType, -1, 2>& distorted_points,
     const Eigen::Matrix<EigenScalarType, 3, 3>& K,
-    const Eigen::Vector<EigenScalarType, 4>& dist_coefs, int max_iter = 100,
-    EigenScalarType epsilon = 1e-5) {
+    const Eigen::Vector<EigenScalarType, 4>& dist_coefs, int max_iter = 8,
+    EigenScalarType epsilon = 1e-7) {
   using Eigen::Array;
   using Eigen::Dynamic;
   using Eigen::Matrix;
@@ -154,7 +171,7 @@ Eigen::Matrix<EigenScalarType, -1, 2> undistort_points_fisheye(
 
   // Extract fisheye distortion coefficients (k1, k2, k3, k4)
   const EigenScalarType k1 = dist_coefs[0], k2 = dist_coefs[1],
-                        k3 = dist_coefs[4], k4 = dist_coefs[5];
+                        k3 = dist_coefs[2], k4 = dist_coefs[3];
 
   // Normalized image coordinates
   const Array<EigenScalarType, Dynamic, 1> xn =
@@ -229,7 +246,10 @@ Eigen::Matrix<EigenScalarType, -1, 2> undistort_points_fisheye(
     const Array<EigenScalarType, Dynamic, 1> J22 = scaling + y * dscaling_dy;
 
     const Array<EigenScalarType, Dynamic, 1> det = J11 * J22 - J12 * J21;
-    const Array<EigenScalarType, Dynamic, 1> inv_det = 1.0 / det.max(epsilon);
+    const Array<EigenScalarType, Dynamic, 1> safe_det =
+        clamp_abs_min(det, epsilon);
+    const Array<EigenScalarType, Dynamic, 1> inv_det =
+        EigenScalarType(1) / safe_det;
 
     xu += inv_det * (J22 * x_err - J12 * y_err);
     yu += inv_det * (-J21 * x_err + J11 * y_err);
